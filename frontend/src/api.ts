@@ -63,6 +63,13 @@ export interface Chunk {
 }
 
 export type ConceptState = 'locked' | 'unlocked' | 'in_progress' | 'mastered'
+export type KeyIdeaStatus = 'untested' | 'correct' | 'partial' | 'missing' | 'misconception'
+
+export interface TestedKeyIdea {
+  id: number
+  text: string
+  status: KeyIdeaStatus
+}
 
 export interface Concept {
   id: number
@@ -74,6 +81,7 @@ export interface Concept {
   prerequisite_ids: number[]
   source_chunk_ids: number[]
   key_idea_count: number
+  tested_key_ideas: TestedKeyIdea[]
 }
 
 export interface ConceptEdge {
@@ -106,6 +114,67 @@ export const documents = {
   },
   retry: (id: number) => api<Document>(`/documents/${id}/retry`, { method: 'POST' }),
   remove: (id: number) => api(`/documents/${id}`, { method: 'DELETE' }),
+}
+
+export interface Question {
+  id: number
+  number: number
+  text: string
+  level: 'explain' | 'apply'
+  points: number
+}
+
+export interface KeyIdeaFeedback extends TestedKeyIdea {
+  feedback: string
+}
+
+export interface Answer {
+  id: number
+  question_id: number
+  text: string
+  graded: boolean
+  points_possible: number
+  points_earned: number | null
+  score: number | null
+  key_ideas: KeyIdeaFeedback[]
+  source_chunk_ids: number[]
+  dispute_reason: string | null
+  regraded: boolean
+  can_dispute: boolean
+}
+
+export interface LearningSession {
+  concept_id: number
+  concept_name: string
+  document_id: number
+  mastery: number
+  mastered: boolean
+  key_idea_count: number
+  key_ideas_correct: number
+  question: Question | null
+  ungraded_answer: Answer | null
+}
+
+export interface Graded {
+  answer: Answer
+  mastery_before: number
+  session: LearningSession
+}
+
+export const learning = {
+  start: (conceptId: number) =>
+    api<LearningSession>(`/concepts/${conceptId}/session`, { method: 'POST' }),
+  answer: (questionId: number, text: string) =>
+    api<Graded>(`/questions/${questionId}/answer`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+  retryGrading: (answerId: number) => api<Graded>(`/answers/${answerId}/grade`, { method: 'POST' }),
+  dispute: (answerId: number, reason: string) =>
+    api<Graded>(`/answers/${answerId}/dispute`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
 }
 
 /** Where a document opens: its hub when ready, otherwise the processing screen. */

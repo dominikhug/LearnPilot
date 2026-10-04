@@ -44,6 +44,10 @@ onMounted(async () => {
     error.value = errorMessage(e)
   }
 })
+function learn(conceptId: number) {
+  router.push({ name: 'learn', params: { id: conceptId } })
+}
+
 onUnmounted(() => phoneQuery.removeEventListener('change', onBreakpoint))
 </script>
 
@@ -58,8 +62,6 @@ onUnmounted(() => phoneQuery.removeEventListener('change', onBreakpoint))
         {{ graph.concepts.length }} concepts · {{ document.language?.toUpperCase() ?? '—' }} ·
         {{ document.token_count?.toLocaleString() }} tokens
       </p>
-      <p class="notice">Learning sessions arrive in the next step. Explore the concept map below.</p>
-
       <ul class="legend plain-list" aria-label="Legend">
         <li v-for="state in legendStates" :key="state">
           <span aria-hidden="true">{{ stateIcon[state] }}</span> {{ stateLabel[state] }}
@@ -79,6 +81,7 @@ onUnmounted(() => phoneQuery.removeEventListener('change', onBreakpoint))
             :chunks-by-id="chunksById"
             @close="selectedId = null"
             @select="selectedId = $event"
+            @learn="learn"
           />
         </div>
       </template>
@@ -93,6 +96,7 @@ onUnmounted(() => phoneQuery.removeEventListener('change', onBreakpoint))
           :chunks-by-id="chunksById"
           @close="selectedId = null"
           @select="selectedId = $event"
+          @learn="learn"
         />
       </div>
     </template>

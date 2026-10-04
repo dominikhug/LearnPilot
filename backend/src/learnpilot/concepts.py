@@ -1,13 +1,27 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from sqlmodel import col, func, select
+from sqlmodel import col, select
 
 from learnpilot import graph
 from learnpilot.auth import CurrentUser
 from learnpilot.documents import DbSession, owned_document
-from learnpilot.models import Concept, KeyIdea, PrerequisiteEdge
+from learnpilot.models import (
+    Concept,
+    ConceptStatus,
+    KeyIdea,
+    KeyIdeaStatus,
+    LearnerConceptState,
+    LearnerKeyIdeaState,
+    PrerequisiteEdge,
+)
 
 router = APIRouter(prefix="/api/documents", tags=["concepts"])
+
+
+class TestedKeyIdeaOut(BaseModel):
+    id: int
+    text: str
+    status: KeyIdeaStatus
 
 
 class ConceptOut(BaseModel):
@@ -21,6 +35,7 @@ class ConceptOut(BaseModel):
     source_chunk_ids: list[int]
     # Untested key ideas stay hidden: they are the answer rubric.
     key_idea_count: int
+    tested_key_ideas: list[TestedKeyIdeaOut]
 
 
 class EdgeOut(BaseModel):
@@ -48,18 +63,40 @@ def get_graph(document_id: int, user: CurrentUser, session: DbSession) -> GraphO
     edges = list(
         session.exec(select(PrerequisiteEdge).where(col(PrerequisiteEdge.to_concept_id).in_(ids)))
     )
-    key_idea_counts = dict(
+    key_ideas: dict[int, list[KeyIdea]] = {i: [] for i in ids}
+    for key_idea in session.exec(
+        select(KeyIdea).where(col(KeyIdea.concept_id).in_(ids)).order_by(col(KeyIdea.position))
+    ):
+        key_ideas[key_idea.concept_id].append(key_idea)
+    key_idea_states = dict(
         session.exec(
-            select(KeyIdea.concept_id, func.count())
-            .where(col(KeyIdea.concept_id).in_(ids))
-            .group_by(col(KeyIdea.concept_id))
+            select(LearnerKeyIdeaState.key_idea_id, LearnerKeyIdeaState.status).where(
+                LearnerKeyIdeaState.user_id == user.id,
+                col(LearnerKeyIdeaState.key_idea_id).in_(
+                    [k.id for group in key_ideas.values() for k in group]
+                ),
+                LearnerKeyIdeaState.status != KeyIdeaStatus.untested,
+            )
         ).all()
     )
+    learner_states = {
+        s.concept_id: s
+        for s in session.exec(
+            select(LearnerConceptState).where(
+                LearnerConceptState.user_id == user.id,
+                col(LearnerConceptState.concept_id).in_(ids),
+            )
+        )
+    }
 
     pairs = [(e.from_concept_id, e.to_concept_id) for e in edges]
     levels = graph.levels(ids, pairs)
-    # Learner progress arrives with the learning session; until then nothing is mastered.
-    states = graph.node_states(ids, pairs)
+    states = graph.node_states(
+        ids,
+        pairs,
+        mastered={i for i, s in learner_states.items() if s.status == ConceptStatus.mastered},
+        in_progress={i for i, s in learner_states.items() if s.status == ConceptStatus.in_progress},
+    )
     prerequisites: dict[int, list[int]] = {i: [] for i in ids}
     for a, b in pairs:
         prerequisites[b].append(a)
@@ -72,10 +109,15 @@ def get_graph(document_id: int, user: CurrentUser, session: DbSession) -> GraphO
                 definition=c.definition,
                 level=levels[c.id],
                 state=states[c.id],
-                mastery=0.0,
+                mastery=learner_states[c.id].mastery if c.id in learner_states else 0.0,
                 prerequisite_ids=prerequisites[c.id],
                 source_chunk_ids=c.source_chunk_ids,
-                key_idea_count=key_idea_counts.get(c.id, 0),
+                key_idea_count=len(key_ideas[c.id]),
+                tested_key_ideas=[
+                    TestedKeyIdeaOut(id=k.id, text=k.text, status=key_idea_states[k.id])
+                    for k in key_ideas[c.id]
+                    if k.id in key_idea_states
+                ],
             )
             for c in concepts
         ],

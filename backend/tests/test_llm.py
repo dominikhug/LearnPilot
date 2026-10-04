@@ -15,7 +15,12 @@ def message(text: str, stop_reason: str = "end_turn"):
     return SimpleNamespace(
         model="claude-test",
         stop_reason=stop_reason,
-        usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+        usage=SimpleNamespace(
+            input_tokens=10,
+            output_tokens=5,
+            cache_creation_input_tokens=None,
+            cache_read_input_tokens=None,
+        ),
         content=[SimpleNamespace(type="thinking"), SimpleNamespace(type="text", text=text)],
     )
 
@@ -74,3 +79,19 @@ def test_refusal_and_truncation_fail_without_retry(api, stop_reason, text):
     with pytest.raises(llm.LlmOutputError, match=text):
         generate()
     assert len(api.requests) == 1
+
+
+def test_context_is_cached_before_the_question(api):
+    api.queue = [message('{"value": 1}')]
+    llm.generate(system="s", user="u", context="c", output_type=Answer, effort="medium")
+    [context, user] = api.requests[0]["messages"][0]["content"]
+    assert context == {"type": "text", "text": "c", "cache_control": {"type": "ephemeral"}}
+    assert user == {"type": "text", "text": "u"}
+
+
+def test_cached_tokens_count_as_input(api):
+    cached = message('{"value": 1}')
+    cached.usage.cache_creation_input_tokens = 100
+    cached.usage.cache_read_input_tokens = 1000
+    api.queue = [cached]
+    assert generate().usage.input_tokens == 1110

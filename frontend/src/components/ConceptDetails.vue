@@ -1,18 +1,28 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Chunk, Concept } from '../api'
-import { MASTERY_THRESHOLD, chunkLocation, stateIcon, stateLabel } from '../concepts'
+import {
+  MASTERY_THRESHOLD,
+  chunkLocation,
+  keyIdeaIcon,
+  keyIdeaLabel,
+  stateIcon,
+  stateLabel,
+} from '../concepts'
 
 const props = defineProps<{
   concept: Concept
   conceptsById: Map<number, Concept>
   chunksById: Map<number, Chunk>
 }>()
-const emit = defineEmits<{ close: []; select: [id: number] }>()
+const emit = defineEmits<{ close: []; select: [id: number]; learn: [id: number] }>()
+
+const learnLabel = { unlocked: 'Start learning', in_progress: 'Continue learning', mastered: 'Review' }
 
 const prerequisites = computed(() =>
   props.concept.prerequisite_ids.flatMap((id) => props.conceptsById.get(id) ?? []),
 )
+const untested = computed(() => props.concept.key_idea_count - props.concept.tested_key_ideas.length)
 const sources = computed(() =>
   props.concept.source_chunk_ids.flatMap((id) => props.chunksById.get(id) ?? []),
 )
@@ -28,6 +38,12 @@ const sources = computed(() =>
       <span aria-hidden="true">{{ stateIcon[concept.state] }}</span> {{ stateLabel[concept.state] }}
     </p>
     <p>{{ concept.definition }}</p>
+    <div class="actions start">
+      <button v-if="concept.state !== 'locked'" @click="emit('learn', concept.id)">
+        {{ learnLabel[concept.state] }}
+      </button>
+      <p v-else class="muted">Locked until its prerequisites are mastered.</p>
+    </div>
 
     <h3>Mastery</h3>
     <div class="mastery">
@@ -46,9 +62,17 @@ const sources = computed(() =>
     <p v-else class="muted">None – a good place to start.</p>
 
     <h3>Key ideas</h3>
-    <p class="muted">
-      {{ concept.key_idea_count }} key ideas, not yet tested. They appear here once a question has
-      tested them.
+    <ul v-if="concept.tested_key_ideas.length" class="plain-list key-idea-status">
+      <li v-for="k in concept.tested_key_ideas" :key="k.id">
+        <span aria-hidden="true">{{ keyIdeaIcon[k.status] }}</span>
+        <span class="visually-hidden">{{ keyIdeaLabel[k.status] }}: </span>
+        {{ k.text }}
+      </li>
+    </ul>
+    <p v-if="untested" class="muted">
+      {{ untested }} {{ concept.tested_key_ideas.length ? 'more ' : '' }}key
+      {{ untested === 1 ? 'idea' : 'ideas' }}, not yet tested. They appear here once a question
+      has tested them.
     </p>
 
     <h3>Source passages</h3>

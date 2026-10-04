@@ -2,7 +2,6 @@
 
 import logging
 
-import anthropic
 from sqlmodel import Session, col, update
 
 from learnpilot import extraction, llm
@@ -11,7 +10,6 @@ from learnpilot.db import new_session
 from learnpilot.models import (
     Document,
     DocumentStatus,
-    LlmCall,
     LlmPurpose,
     ProcessingStep,
 )
@@ -48,30 +46,12 @@ def process_document(document_id: int) -> None:
             _run(session, document_id)
         except _Gone:
             session.rollback()
-        except anthropic.AuthenticationError:
-            _fail(
-                session,
-                document_id,
-                "The AI service rejected the API key. Check the server configuration.",
-            )
-        except anthropic.APIError:
-            log.exception("AI service call failed for document %s", document_id)
-            _fail(
-                session,
-                document_id,
-                "The AI service is not reachable right now. Try again in a few minutes.",
-            )
-        except llm.LlmNotConfiguredError:
-            _fail(
-                session,
-                document_id,
-                "The AI service is not configured. Check ANTHROPIC_API_KEY on the server.",
-            )
         except (llm.LlmOutputError, extraction.ExtractionError) as e:
             _fail(session, document_id, f"Finding concepts failed. {e}")
-        except Exception:
+        except Exception as e:
             log.exception("Processing failed for document %s", document_id)
-            _fail(session, document_id, "Processing failed unexpectedly. Try again.")
+            message = llm.error_message(e) or "Processing failed unexpectedly. Try again."
+            _fail(session, document_id, message)
 
 
 def _run(session: Session, document_id: int) -> None:
@@ -97,9 +77,9 @@ def _run(session: Session, document_id: int) -> None:
             effort="high",
         )
     except llm.LlmOutputError as e:
-        _log_call(session, user_id, document_id, e.usage)
+        llm.log_call(session, user_id, document_id, LlmPurpose.concept_extraction, e.usage)
         raise
-    _log_call(session, user_id, document_id, result.usage)
+    llm.log_call(session, user_id, document_id, LlmPurpose.concept_extraction, result.usage)
 
     _set_step(session, document_id, ProcessingStep.building_graph)
     draft = extraction.validate(result.output, {c.id for c in chunks})
@@ -125,24 +105,6 @@ def _set_step(session: Session, document_id: int, step: ProcessingStep) -> Docum
     document.step = step
     session.commit()
     return document
-
-
-def _log_call(session: Session, user_id: int, document_id: int, usage: llm.Usage) -> None:
-    # Logged even when the document is gone, so the tokens still count; the
-    # foreign key would reject a deleted document's id.
-    session.rollback()
-    exists = session.get(Document, document_id, populate_existing=True) is not None
-    session.add(
-        LlmCall(
-            user_id=user_id,
-            document_id=document_id if exists else None,
-            purpose=LlmPurpose.concept_extraction,
-            model=usage.model,
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
-        )
-    )
-    session.commit()
 
 
 def recover_interrupted_documents(session: Session) -> int:
