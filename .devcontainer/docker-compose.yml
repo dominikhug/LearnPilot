@@ -12,6 +12,8 @@ services:
         required: false
     environment:
       CLAUDE_CONFIG_DIR: /home/vscode/.claude
+      # Local dev runs on plain http://localhost
+      SESSION_COOKIE_SECURE: "false"
       DATABASE_URL: postgresql+psycopg://learnpilot:learnpilot@db:5432/learnpilot
     depends_on:
       db:
