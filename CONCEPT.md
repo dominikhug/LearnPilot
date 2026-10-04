@@ -70,10 +70,11 @@ LearnPilot turns an uploaded document into a **map of prerequisites**, guides th
 - **Automatic choice (default)**, in this order:
   1. Concepts **in progress**, most recently worked on first.
   2. **Unlocked, not mastered** concepts, lowest mastery first.
-  3. Tie-break: the concept that unlocks the most other concepts.
+  3. Tie-break: the concept that unlocks the most other concepts, counted as the locked concepts whose **only** missing prerequisite it is. Last tie-break: document order.
 - Mastered concepts are never chosen automatically; reviewing them is a manual choice.
+- A locked concept that was **started early** counts as in progress and can be chosen automatically; locked concepts never started are not.
 - **Manual choice:** the learner can also pick any unlocked concept in the graph.
-- **Locked concepts** can be started after a confirmation (see screen ④). The automatic choice never picks a locked concept. Once started, the concept is "in progress" and does not ask again. Starting early does not unlock anything else: dependent concepts still need all their prerequisites mastered.
+- **Locked concepts** can be started after a confirmation (see screen ④). The automatic choice never picks a locked concept. Once started, the concept is "in progress" and does not ask again. The API enforces the confirmation: starting a locked, never-started concept without it is rejected. Starting early does not unlock anything else: dependent concepts still need all their prerequisites mastered.
 
 **Changes after learning has started**
 
@@ -100,7 +101,15 @@ Questions are generated from the concept's source chunks only. The generator rec
 - Each question is worth **1 point per key idea it tests**.
 - The round continues until the concept is mastered (see ④).
 - **When the plan runs out** before the concept is mastered, new questions are generated for the key ideas whose last status is not `correct`. If all are `correct` but mastery is still ≤ 0.7, the new question targets the key idea with the weakest history.
+  - Follow-ups are written **one at a time**, each on one key idea, and only when the learner asks for the next question, so grading never waits for question generation. Code chooses the key ideas; the LLM only writes the question.
+  - **Weakest history:** lowest average points over the answers that tested the key idea (untested counts as 0); ties go to more failed attempts, then to the earlier key idea.
+- **Reviewing a mastered concept** continues the same way: the remaining plan questions, then follow-ups on the weakest key idea. The "concept completed" screen is shown only once, when the concept first becomes mastered.
+- **Question numbers** follow the order in which questions are asked, since checks and interleaving can take planned questions out of plan order. A question already shown stays current after a reload.
 - **Attempt limit:** after **3 failed attempts** on the same key idea (status `missing` or `misconception`), the learner is offered a way out: review a prerequisite, or come back to the concept later.
+  - Failed attempts count **since the key idea was last answered correctly**: `correct` resets the counter, `partial` neither counts nor resets.
+  - The way out is offered when the counter reaches 3, 6, 9 …, so after declining the learner gets three more tries before the next offer. It is offered only when the graded answer is the latest one testing that key idea (a dispute on an older answer does not trigger it), and the re-explanation is still given.
+  - **Review a prerequisite:** the missing prerequisite the locked-concept dialog would suggest; if all prerequisites are mastered, the one with the lowest mastery is offered for review; without prerequisites, no such option.
+  - **Come back later:** starts the automatic choice among the other concepts (or returns to the graph if there is none). Nothing is stored to postpone the concept.
 
 ### ⑥ Answer evaluation
 
@@ -140,7 +149,7 @@ score = points earned ÷ points possible (0–1). In the example above: 1.5 ÷ 3
 
   mastery_new = α · score + (1 − α) · mastery_old, with **α = 0.5**
 
-- Per key idea: **status** (`untested` / `correct` / `partial` / `missing` / `misconception`, always the result of the most recent question testing it) and the number of failed attempts.
+- Per key idea: **status** (`untested` / `correct` / `partial` / `missing` / `misconception`, always the result of the most recent question testing it) and the number of failed attempts since it was last answered correctly (see ⑤).
 - A concept counts as **mastered** when every key idea's status is `correct` **and** mastery > 0.7.
 - Earlier misconceptions are read from the stored evaluations to target re-explanations.
 - All answers have the same weight, including check questions after a re-explanation.
@@ -166,7 +175,13 @@ score = points earned ÷ points possible (0–1). In the example above: 1.5 ÷ 3
 - Triggered after an answer in which any tested key idea is `missing` or `misconception`.
 - `partial` does **not** trigger a re-explanation; the key idea simply gets a follow-up question.
 - Generated from the source chunks, aimed at the specific gap, using a different angle than before (analogy, example, step-by-step).
+  - The input is the gap key ideas with their status and grading feedback, earlier misconceptions on them (read from the stored evaluations), and earlier explanations of them.
+  - The angle is chosen in code: analogy, then example, then step-by-step, then the least recently used.
+  - **A separate call after grading**, one explanation per answer: the feedback appears without waiting, and a failed explanation never loses the grade (it can be retried or skipped). If the learner leaves before it is written, it is not generated later; the question order below still applies.
 - Followed by a new question to check whether the gap is closed. If another key idea of the concept is still open, a question on that one comes first (interleaving), so the check question tests recall rather than repeating what was just read.
+  - **Check question:** a planned, not yet asked question that tests the gap is used if there is one; otherwise a new follow-up is written. This saves calls.
+  - **Interleaving:** any answer given after the failed one counts as the intervening question. If no other key idea is open, the check comes right away.
+  - **Several gaps:** the oldest is checked first; key ideas that failed in the same answer are checked together, at most 3 per question.
 
 ## 5. Prompting rules
 
@@ -272,6 +287,8 @@ score = points earned ÷ points possible (0–1). In the example above: 1.5 ÷ 3
 
 **⑥ Concept completed** – confirmation with mastery, list of newly unlocked concepts, buttons "Next concept" and "Back to graph". When all concepts are mastered: "document completed".
 
+- "Newly unlocked" lists the dependents that are now unlocked; ones already started early stay "in progress" and are not listed.
+
 ### Design principles
 
 1. One central place per document: the graph.
@@ -320,10 +337,10 @@ Level 3
 | `PrerequisiteEdge` | from_concept, to_concept, confidence |
 | `LearnerConceptState` | user_id, concept_id, status (untouched / in_progress / mastered), mastery, mastered_at, last_seen |
 | `LearnerKeyIdeaState` | user_id, key_idea_id, status, failed_attempts |
-| `Question` | id, user_id, concept_id, text, tested_key_idea_ids[], origin (plan / follow-up), state (planned / asked / answered) |
+| `Question` | id, user_id, concept_id, position (plan order, follow-ups appended), text, level (explain / apply), tested_key_idea_ids[], source_chunk_ids[] (citations, shown after grading), origin (plan / follow-up), state (planned / asked / answered) |
 | `Answer` | id, question_id, text, evaluation JSON (empty until graded), dispute_reason, regraded, points_possible, points_earned, score, created_at |
 | `LlmCall` | id, user_id, document_id, purpose (extraction / question plan / grading / explanation …), model, input_tokens, output_tokens, created_at |
-| `Explanation` | id, user_id, concept_id, key_idea_ids[], text, created_at |
+| `Explanation` | id, user_id, concept_id, answer_id (unique: one per answer), key_idea_ids[], angle (analogy / example / step_by_step), text, source_chunk_ids[] (citations), created_at |
 
 - Each document and its graph belong to one user.
 - Stored questions let a session resume exactly where it stopped, including planned but unanswered questions.
