@@ -1,0 +1,36 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sleep infinity
+    volumes:
+      - ..:/workspaces/LearnPilot:cached
+      - claude-config:/home/vscode/.claude
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      CLAUDE_CONFIG_DIR: /home/vscode/.claude
+      DATABASE_URL: postgresql+psycopg://learnpilot:learnpilot@db:5432/learnpilot
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: learnpilot
+      POSTGRES_PASSWORD: learnpilot
+      POSTGRES_DB: learnpilot
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U learnpilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  claude-config:
+  pgdata:
