@@ -39,7 +39,7 @@ export const auth = {
 }
 
 export type DocumentStatus = 'processing' | 'ready' | 'failed'
-export type ProcessingStep = 'counting_tokens' | 'done'
+export type ProcessingStep = 'counting_tokens' | 'extracting_concepts' | 'building_graph' | 'done'
 
 export interface Document {
   id: number
@@ -50,6 +50,7 @@ export interface Document {
   language: string | null
   error_message: string | null
   can_retry: boolean
+  concept_count: number
   created_at: string
 }
 
@@ -59,6 +60,31 @@ export interface Chunk {
   page: number | null
   section: string | null
   text: string
+}
+
+export type ConceptState = 'locked' | 'unlocked' | 'in_progress' | 'mastered'
+
+export interface Concept {
+  id: number
+  name: string
+  definition: string
+  level: number
+  state: ConceptState
+  mastery: number
+  prerequisite_ids: number[]
+  source_chunk_ids: number[]
+  key_idea_count: number
+}
+
+export interface ConceptEdge {
+  from_concept_id: number
+  to_concept_id: number
+  confidence: number
+}
+
+export interface ConceptGraph {
+  concepts: Concept[]
+  edges: ConceptEdge[]
 }
 
 export interface Limits {
@@ -72,6 +98,7 @@ export const documents = {
   limits: () => api<Limits>('/documents/limits'),
   get: (id: number) => api<Document>(`/documents/${id}`),
   chunks: (id: number) => api<Chunk[]>(`/documents/${id}/chunks`),
+  graph: (id: number) => api<ConceptGraph>(`/documents/${id}/graph`),
   upload: (file: File) => {
     const body = new FormData()
     body.append('file', file)

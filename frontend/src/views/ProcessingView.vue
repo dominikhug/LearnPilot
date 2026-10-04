@@ -18,6 +18,8 @@ let timer: number | undefined
 const steps = [
   { key: 'extracting_text', label: 'Extracting text' },
   { key: 'counting_tokens', label: 'Counting tokens' },
+  { key: 'extracting_concepts', label: 'Finding concepts' },
+  { key: 'building_graph', label: 'Building graph' },
 ] as const
 
 type StepState = 'done' | 'active' | 'failed' | 'pending'
@@ -105,7 +107,10 @@ onUnmounted(() => window.clearTimeout(timer))
         </template>
         <template v-else>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
-          <p class="muted">This page moves on by itself when the document is ready.</p>
+          <p class="muted">
+            Finding concepts can take a few minutes. This page moves on by itself when the
+            document is ready.
+          </p>
           <RouterLink to="/" class="muted">Back to library</RouterLink>
         </template>
       </template>

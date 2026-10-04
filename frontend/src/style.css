@@ -207,7 +207,7 @@ input {
 
 .doc-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 6rem 7rem 8rem 5rem;
+  grid-template-columns: minmax(0, 1fr) 6rem 6rem 7rem 8rem 5rem;
   align-items: center;
   gap: 1rem;
   padding: 0.75rem 1rem;
@@ -286,7 +286,7 @@ input {
 
   .doc-row button {
     grid-column: 2;
-    grid-row: 2 / span 3;
+    grid-row: 2 / span 4;
     align-self: end;
   }
 }
@@ -363,6 +363,186 @@ input {
 }
 
 /* Document hub */
+
+.plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+button.link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  text-align: left;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.hub-graph {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.hub-graph.with-panel {
+  grid-template-columns: minmax(0, 1fr) 24rem;
+}
+
+.graph-canvas {
+  height: max(28rem, calc(100vh - 16rem));
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.graph-canvas .vue-flow__edge-path {
+  stroke: var(--muted);
+  stroke-width: 1.5;
+}
+
+.graph-canvas .vue-flow__edge.uncertain .vue-flow__edge-path {
+  stroke-dasharray: 4 4;
+}
+
+.graph-canvas .vue-flow__handle {
+  visibility: hidden;
+}
+
+.concept-node {
+  width: 200px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.875rem;
+  text-align: left;
+}
+
+.concept-node-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* Locked: lock icon, muted colour and a dashed border, so it does not rely on colour alone. */
+.concept-node.locked {
+  border-style: dashed;
+  color: var(--muted);
+  background: var(--bg);
+}
+
+.concept-node.in_progress {
+  border-color: var(--warn);
+}
+
+.concept-node.mastered {
+  border-color: var(--ok);
+}
+
+.concept-node.selected {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.side-panel {
+  max-height: max(28rem, calc(100vh - 16rem));
+  overflow-y: auto;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.concept-details h2 {
+  margin-top: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.concept-details h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+}
+
+.concept-details p {
+  max-width: 70ch;
+}
+
+.concept-state {
+  margin: 0;
+  color: var(--muted);
+}
+
+.mastery {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mastery meter {
+  flex: 1;
+  max-width: 12rem;
+}
+
+.details-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  overflow-y: auto;
+  padding: 1rem;
+  background: var(--bg);
+}
+
+.concept-list h2 {
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.concept-list-item {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+}
+
+.concept-list-item.locked {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.concept-list-name {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.concept-list-needs {
+  flex-basis: 100%;
+  font-size: 0.8rem;
+}
 
 .passages {
   list-style: none;

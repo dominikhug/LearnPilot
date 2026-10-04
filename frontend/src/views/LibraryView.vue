@@ -123,12 +123,17 @@ onMounted(load)
 
     <ul v-else class="doc-list">
       <li class="doc-row doc-row-head" aria-hidden="true">
-        <span>Title</span><span>Language</span><span>Status</span><span>Uploaded</span><span />
+        <span>Title</span><span>Language</span><span>Concepts</span><span>Status</span>
+        <span>Uploaded</span><span />
       </li>
       <li v-for="document in items" :key="document.id" class="doc-row">
         <RouterLink :to="documentRoute(document)" class="doc-title">{{ document.title }}</RouterLink>
         <span class="doc-meta">
           <span class="label">Language</span>{{ document.language?.toUpperCase() ?? '—' }}
+        </span>
+        <span class="doc-meta">
+          <span class="label">Concepts</span>
+          {{ document.status === 'ready' ? document.concept_count : '—' }}
         </span>
         <span class="doc-meta">
           <span class="label">Status</span>

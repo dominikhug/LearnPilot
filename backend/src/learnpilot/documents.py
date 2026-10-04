@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel
-from sqlmodel import Session, col, select
+from sqlmodel import Session, col, func, select
 
 from learnpilot.auth import CurrentUser
 from learnpilot.config import settings
@@ -14,7 +14,7 @@ from learnpilot.ingestion import (
     extract_chunks,
     title_from_filename,
 )
-from learnpilot.models import Chunk, Document, DocumentStatus, ProcessingStep
+from learnpilot.models import Chunk, Concept, Document, DocumentStatus, ProcessingStep
 from learnpilot.processing import can_retry, process_document
 
 # Generous upper bound on characters per token: text longer than this many
@@ -35,13 +35,15 @@ class DocumentOut(BaseModel):
     language: str | None
     error_message: str | None
     can_retry: bool
+    concept_count: int
     created_at: datetime
 
     @classmethod
-    def of(cls, document: Document) -> "DocumentOut":
+    def of(cls, document: Document, concept_count: int = 0) -> "DocumentOut":
         # Attribute access (unlike model_dump) reloads an instance expired by commit.
-        fields = {name: getattr(document, name) for name in cls.model_fields if name != "can_retry"}
-        return cls(**fields, can_retry=can_retry(document))
+        stored = cls.model_fields.keys() - {"can_retry", "concept_count"}
+        fields = {name: getattr(document, name) for name in stored}
+        return cls(**fields, can_retry=can_retry(document), concept_count=concept_count)
 
 
 class LimitsOut(BaseModel):
@@ -67,12 +69,18 @@ def owned_document(session: Session, user: CurrentUser, document_id: int) -> Doc
 
 @router.get("")
 def list_documents(user: CurrentUser, session: DbSession) -> list[DocumentOut]:
-    documents = session.exec(
-        select(Document)
+    concept_count = (
+        select(func.count())
+        .where(Concept.document_id == Document.id)
+        .correlate(Document)
+        .scalar_subquery()
+    )
+    rows = session.exec(
+        select(Document, concept_count)
         .where(Document.user_id == user.id)
         .order_by(col(Document.created_at).desc(), col(Document.id).desc())
     )
-    return [DocumentOut.of(d) for d in documents]
+    return [DocumentOut.of(d, count) for d, count in rows]
 
 
 @router.get("/limits")
@@ -127,7 +135,11 @@ def upload_document(
 
 @router.get("/{document_id}")
 def get_document(document_id: int, user: CurrentUser, session: DbSession) -> DocumentOut:
-    return DocumentOut.of(owned_document(session, user, document_id))
+    document = owned_document(session, user, document_id)
+    count = session.exec(
+        select(func.count()).select_from(Concept).where(Concept.document_id == document_id)
+    ).one()
+    return DocumentOut.of(document, count)
 
 
 @router.get("/{document_id}/chunks")

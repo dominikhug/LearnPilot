@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, text
 from starlette.middleware.sessions import SessionMiddleware
 
-from learnpilot import auth, documents
+from learnpilot import auth, concepts, documents
 from learnpilot.config import settings
 from learnpilot.db import get_session, new_session
 from learnpilot.processing import recover_interrupted_documents
@@ -38,6 +38,7 @@ app.add_middleware(
 )
 app.include_router(auth.router)
 app.include_router(documents.router)
+app.include_router(concepts.router)
 
 
 @app.get("/api/health")
