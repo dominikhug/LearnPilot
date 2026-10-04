@@ -7,6 +7,8 @@
   --accent: #3b5bdb;
   --accent-text: #fff;
   --error: #c92a2a;
+  --ok: #2b8a3e;
+  --warn: #b35c00;
 
   font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
   color-scheme: light dark;
@@ -24,6 +26,8 @@
     --accent: #748ffc;
     --accent-text: #0b0b0e;
     --error: #ff8787;
+    --ok: #69db7c;
+    --warn: #ffa94d;
   }
 }
 
@@ -40,7 +44,19 @@ h1 {
   font-size: 1.5rem;
 }
 
-button {
+h2 {
+  margin: 1.5rem 0 0.75rem;
+  font-size: 1.15rem;
+}
+
+a {
+  color: var(--accent);
+}
+
+button,
+a.button {
+  display: inline-block;
+  text-decoration: none;
   font: inherit;
   padding: 0.5rem 1rem;
   border: 1px solid var(--accent);
@@ -50,10 +66,22 @@ button {
   cursor: pointer;
 }
 
-button.secondary {
+button.secondary,
+a.button.secondary {
   background: transparent;
   color: var(--text);
   border-color: var(--border);
+}
+
+button.small {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+button.danger {
+  background: var(--error);
+  border-color: var(--error);
+  color: var(--surface);
 }
 
 button:disabled {
@@ -111,4 +139,252 @@ input {
 .error {
   margin: 0;
   color: var(--error);
+}
+
+.brand {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.notice {
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+/* Library */
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.page-head h1 {
+  margin: 0;
+}
+
+.hint {
+  margin: 0.5rem 0 1.5rem;
+  font-size: 0.875rem;
+}
+
+.empty {
+  padding: 3rem 1rem;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+
+.doc-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.doc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6rem 7rem 8rem 5rem;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.doc-row-head {
+  border-top: none;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.doc-title {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.doc-meta .label {
+  display: none;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.badge.ready {
+  color: var(--ok);
+}
+
+.badge.processing {
+  color: var(--warn);
+}
+
+.badge.failed {
+  color: var(--error);
+}
+
+@media (max-width: 768px) {
+  .doc-list {
+    display: grid;
+    gap: 0.75rem;
+    background: none;
+    border: none;
+  }
+
+  .doc-row-head {
+    display: none;
+  }
+
+  .doc-row {
+    grid-template-columns: 1fr auto;
+    gap: 0.25rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  .doc-title {
+    grid-column: 1 / -1;
+  }
+
+  .doc-meta {
+    grid-column: 1;
+    font-size: 0.875rem;
+  }
+
+  .doc-meta .label {
+    display: inline;
+    color: var(--muted);
+    margin-right: 0.5rem;
+  }
+
+  .doc-row button {
+    grid-column: 2;
+    grid-row: 2 / span 3;
+    align-self: end;
+  }
+}
+
+/* Confirmation dialog */
+
+.dialog {
+  width: min(28rem, calc(100vw - 2rem));
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.dialog::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+
+.dialog h2 {
+  margin-top: 0;
+}
+
+/* Processing */
+
+.centered-page {
+  display: grid;
+  justify-items: center;
+  padding: 3rem 1rem;
+}
+
+.status-card {
+  max-width: 28rem;
+}
+
+.status-card h1 {
+  overflow-wrap: anywhere;
+}
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.steps li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.step-icon {
+  width: 1.25rem;
+  text-align: center;
+  font-weight: 700;
+}
+
+.steps .done .step-icon {
+  color: var(--ok);
+}
+
+.steps .active {
+  font-weight: 600;
+}
+
+.steps .failed {
+  color: var(--error);
+}
+
+.steps .pending {
+  color: var(--muted);
+}
+
+/* Document hub */
+
+.passages {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.passages li {
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.passages p {
+  margin: 0.25rem 0 0;
+  white-space: pre-wrap;
+  max-width: 70ch;
+}
+
+.passage-location {
+  color: var(--muted);
+  font-size: 0.8rem;
 }

@@ -1,3 +1,6 @@
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -6,11 +9,25 @@ from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, text
 from starlette.middleware.sessions import SessionMiddleware
 
-from learnpilot import auth
+from learnpilot import auth, documents
 from learnpilot.config import settings
-from learnpilot.db import get_session
+from learnpilot.db import get_session, new_session
+from learnpilot.processing import recover_interrupted_documents
 
-app = FastAPI(title="LearnPilot", docs_url="/api/docs", openapi_url="/api/openapi.json")
+log = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    with new_session() as session:
+        if count := recover_interrupted_documents(session):
+            log.warning("Marked %s interrupted document(s) as failed", count)
+    yield
+
+
+app = FastAPI(
+    title="LearnPilot", docs_url="/api/docs", openapi_url="/api/openapi.json", lifespan=lifespan
+)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,
@@ -20,6 +37,7 @@ app.add_middleware(
     https_only=settings.session_cookie_secure,
 )
 app.include_router(auth.router)
+app.include_router(documents.router)
 
 
 @app.get("/api/health")
