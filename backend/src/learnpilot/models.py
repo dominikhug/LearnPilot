@@ -119,6 +119,8 @@ class LlmPurpose(StrEnum):
     concept_extraction = "concept_extraction"
     question_plan = "question_plan"
     grading = "grading"
+    follow_up_question = "follow_up_question"
+    explanation = "explanation"
 
 
 class LlmCall(SQLModel, table=True):
@@ -215,7 +217,9 @@ class Question(SQLModel, table=True):
             Integer, ForeignKey("concept.id", ondelete="CASCADE"), nullable=False, index=True
         )
     )
-    # Order within the concept for this user; questions are asked in this order.
+    # Order within the concept for this user: the plan first, follow-ups appended.
+    # Planned questions are asked in this order unless a check after a
+    # re-explanation or interleaving moves one ahead (see learner.next_question).
     position: int
     text: str = Field(sa_column=Column(Text, nullable=False))
     level: QuestionLevel = Field(sa_column=enum_column(QuestionLevel))
@@ -250,6 +254,42 @@ class Answer(SQLModel, table=True):
     points_possible: float
     points_earned: float | None = None
     score: float | None = None
+    created_at: datetime = Field(
+        default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+class ExplanationAngle(StrEnum):
+    analogy = "analogy"
+    example = "example"
+    step_by_step = "step_by_step"
+
+
+class Explanation(SQLModel, table=True):
+    """A re-explanation of the key ideas one graded answer missed or got wrong."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(
+        sa_column=Column(
+            Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False, index=True
+        )
+    )
+    concept_id: int = Field(
+        sa_column=Column(
+            Integer, ForeignKey("concept.id", ondelete="CASCADE"), nullable=False, index=True
+        )
+    )
+    # The answer whose gaps it explains; one explanation per answer.
+    answer_id: int = Field(
+        sa_column=Column(
+            Integer, ForeignKey("answer.id", ondelete="CASCADE"), nullable=False, unique=True
+        )
+    )
+    key_idea_ids: list[int] = Field(sa_column=Column(JSON, nullable=False))
+    angle: ExplanationAngle = Field(sa_column=enum_column(ExplanationAngle))
+    text: str = Field(sa_column=Column(Text, nullable=False))
+    # The passages it draws on; shown as citations.
+    source_chunk_ids: list[int] = Field(sa_column=Column(JSON, nullable=False))
     created_at: datetime = Field(
         default_factory=utcnow, sa_column=Column(DateTime(timezone=True), nullable=False)
     )

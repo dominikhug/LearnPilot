@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   type Chunk,
+  type Explanation,
   type Graded,
   type LearningSession,
   type Question,
@@ -12,13 +14,17 @@ import {
 import AppHeader from '../components/AppHeader.vue'
 import {
   MASTERY_THRESHOLD,
+  angleLabel,
   chunkLocation,
   formatPoints,
   keyIdeaIcon,
   keyIdeaLabel,
+  stateIcon,
+  stateLabel,
 } from '../concepts'
 
 const props = defineProps<{ id: number }>()
+const route = useRoute()
 
 const session = ref<LearningSession>()
 const chunks = ref<Chunk[]>([])
@@ -26,7 +32,7 @@ const loadError = ref('')
 const loading = ref(false)
 
 // The question on screen and what happened to it. After grading, the question stays
-// visible with its feedback until "Next question".
+// visible with its feedback (and a re-explanation on a gap) until the learner moves on.
 const question = ref<Question | null>(null)
 const draft = ref('')
 const submittedText = ref('')
@@ -38,18 +44,33 @@ const actionError = ref('')
 const disputing = ref(false)
 const disputeReason = ref('')
 
+const explanation = ref<Explanation>()
+const explaining = ref(false)
+const explainError = ref('')
+
+// Moving on to the next question, which may have to be written first.
+const advancing = ref(false)
+const advanceError = ref('')
+const showCompleted = ref(false)
+
 const chunksById = computed(() => new Map(chunks.value.map((c) => [c.id, c])))
-const sources = computed(() =>
-  (result.value?.answer.source_chunk_ids ?? []).flatMap((id) => chunksById.value.get(id) ?? []),
-)
+const passages = (ids: number[]) => ids.flatMap((id) => chunksById.value.get(id) ?? [])
+const sources = computed(() => passages(result.value?.answer.source_chunk_ids ?? []))
+const explanationSources = computed(() => passages(explanation.value?.source_chunk_ids ?? []))
 const gradingFailed = computed(() => pendingAnswerId.value !== null && !busy.value)
-const finished = computed(() => session.value && !question.value && !result.value)
+const completed = computed(() => result.value?.completed ?? null)
+const nothingToAsk = computed(
+  () => session.value && !question.value && !result.value && !advancing.value,
+)
 
 async function load() {
   loading.value = true
   loadError.value = ''
+  session.value = undefined
+  showCompleted.value = false
   try {
-    show(await learning.start(props.id))
+    // Set when the learner confirmed starting a locked concept.
+    show(await learning.start(props.id, route.query.start === 'locked'))
     chunks.value = await documents.chunks(session.value!.document_id)
   } catch (e) {
     loadError.value = errorMessage(e)
@@ -62,11 +83,15 @@ function show(next: LearningSession) {
   session.value = next
   question.value = next.question
   result.value = undefined
+  explanation.value = undefined
+  explainError.value = ''
   draft.value = ''
   const ungraded = next.ungraded_answer
   pendingAnswerId.value = ungraded?.id ?? null
   submittedText.value = ungraded?.text ?? ''
   actionError.value = ''
+  disputeReason.value = ''
+  disputing.value = false
 }
 
 /** Returns whether grading succeeded. */
@@ -79,6 +104,8 @@ async function grade(call: () => Promise<Graded>) {
     session.value = graded.session
     pendingAnswerId.value = null
     disputing.value = false
+    explanation.value = graded.answer.explanation ?? undefined
+    if (graded.answer.needs_explanation && !explanation.value) explain()
     return true
   } catch (e) {
     actionError.value = errorMessage(e)
@@ -119,10 +146,34 @@ function sendDispute() {
   return grade(() => learning.dispute(answerId, reason))
 }
 
-function next() {
-  if (session.value) show(session.value)
-  disputeReason.value = ''
-  actionError.value = ''
+async function explain() {
+  const answerId = result.value?.answer.id
+  if (answerId === undefined) return
+  explaining.value = true
+  explainError.value = ''
+  try {
+    explanation.value = await learning.explain(answerId)
+  } catch (e) {
+    explainError.value = errorMessage(e)
+  } finally {
+    explaining.value = false
+  }
+}
+
+async function next() {
+  if (completed.value) {
+    showCompleted.value = true
+    return
+  }
+  advancing.value = true
+  advanceError.value = ''
+  try {
+    show(await learning.start(props.id))
+  } catch (e) {
+    advanceError.value = errorMessage(e)
+  } finally {
+    advancing.value = false
+  }
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -130,6 +181,8 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 onMounted(load)
+// "Next concept" and the way out reuse this view for another concept.
+watch(() => props.id, load)
 </script>
 
 <template>
@@ -148,12 +201,58 @@ onMounted(load)
     </div>
     <div v-else-if="loadError && !session" class="learn-status">
       <p class="error" role="alert">{{ loadError }}</p>
-      <div class="actions">
+      <div class="actions centered-actions">
+        <RouterLink to="/" class="button secondary">Library</RouterLink>
         <button @click="load">Try again</button>
       </div>
     </div>
 
-    <template v-if="session">
+    <section
+      v-if="session && completed && showCompleted"
+      class="learn-card learn-complete"
+      aria-live="polite"
+    >
+      <template v-if="completed.document_completed">
+        <h1><span aria-hidden="true">{{ stateIcon.mastered }}</span> Document completed</h1>
+        <p>
+          With {{ session.concept_name }}, every concept of this document is mastered. Mastery
+          {{ completed.mastery.toFixed(2) }}.
+        </p>
+      </template>
+      <template v-else>
+        <h1>
+          <span aria-hidden="true">{{ stateIcon.mastered }}</span>
+          {{ session.concept_name }} mastered
+        </h1>
+        <p>All key ideas answered correctly, with mastery {{ completed.mastery.toFixed(2) }}.</p>
+        <template v-if="completed.newly_unlocked.length">
+          <h2>Newly unlocked</h2>
+          <ul class="plain-list">
+            <li v-for="c in completed.newly_unlocked" :key="c.id">
+              <span aria-hidden="true">{{ stateIcon.unlocked }}</span> {{ c.name }}
+            </li>
+          </ul>
+        </template>
+        <p v-else class="muted">No new concepts were unlocked by this one.</p>
+      </template>
+      <div class="actions centered-actions">
+        <RouterLink
+          :to="{ name: 'document', params: { id: session.document_id } }"
+          class="button secondary"
+        >
+          Back to graph
+        </RouterLink>
+        <RouterLink
+          v-if="completed.next_concept"
+          :to="{ name: 'learn', params: { id: completed.next_concept.id } }"
+          class="button"
+        >
+          Next concept: {{ completed.next_concept.name }}
+        </RouterLink>
+      </div>
+    </section>
+
+    <template v-else-if="session">
       <header class="learn-head">
         <h1>{{ session.concept_name }}</h1>
         <div class="mastery">
@@ -271,30 +370,105 @@ onMounted(load)
           <button
             v-if="result.answer.can_dispute"
             class="secondary"
-            :disabled="busy"
+            :disabled="busy || advancing"
             @click="disputing = true"
           >
             I disagree
           </button>
-          <button :disabled="busy" @click="next">
-            {{ result.session.question ? 'Next question' : 'Continue' }}
+          <button
+            v-if="!result.answer.needs_explanation"
+            :disabled="busy || advancing"
+            @click="next"
+          >
+            {{ completed ? 'Continue' : 'Next question' }}
           </button>
         </div>
       </section>
 
-      <section v-if="finished" class="learn-card" aria-live="polite">
-        <template v-if="session.mastered">
-          <h2>✅ {{ session.concept_name }} mastered</h2>
-          <p>All key ideas answered correctly, with mastery {{ session.mastery.toFixed(2) }}.</p>
-        </template>
-        <template v-else>
-          <h2>All planned questions answered</h2>
+      <section
+        v-if="result?.answer.needs_explanation"
+        class="learn-card explanation"
+        aria-label="Explanation"
+        aria-live="polite"
+      >
+        <div class="learn-card-head">
+          <h2>Let's look at this again</h2>
+          <span v-if="explanation" class="muted">{{ angleLabel[explanation.angle] }}</span>
+        </div>
+        <p v-if="explaining" class="muted">Writing an explanation for the gap…</p>
+        <div v-else-if="explainError" class="learn-error">
+          <p class="error" role="alert">{{ explainError }}</p>
+          <button class="secondary" @click="explain">Retry explanation</button>
+        </div>
+        <template v-else-if="explanation">
           <p class="muted">
-            Mastery needs every key idea last answered correctly and a mastery above
-            {{ MASTERY_THRESHOLD.toFixed(2) }}. Follow-up questions for the open key ideas are
-            not available yet.
+            About: {{ explanation.key_ideas.map((k) => k.text).join(' · ') }}
           </p>
+          <div class="explanation-text">{{ explanation.text }}</div>
+          <details v-if="explanationSources.length" class="sources">
+            <summary>
+              Sources ({{ explanationSources.map(chunkLocation).join(', ') }})
+            </summary>
+            <ol class="passages">
+              <li v-for="chunk in explanationSources" :key="chunk.id">
+                <div class="passage-location">{{ chunkLocation(chunk) }}</div>
+                <p>{{ chunk.text }}</p>
+              </li>
+            </ol>
+          </details>
         </template>
+        <div class="actions">
+          <button :disabled="busy || explaining || advancing || disputing" @click="next">
+            {{ explanation ? 'Got it, ask me again' : 'Skip to the next question' }}
+          </button>
+        </div>
+      </section>
+
+      <section v-if="result?.way_out" class="learn-card way-out" aria-label="Stuck?">
+        <h2>Stuck on this one?</h2>
+        <p>
+          You have missed
+          <strong>{{ result.way_out.key_ideas.map((k) => k.text).join(', ') }}</strong>
+          three times. You can keep trying, or take a step back:
+        </p>
+        <div class="actions start">
+          <RouterLink
+            v-if="result.way_out.prerequisite"
+            :to="{ name: 'learn', params: { id: result.way_out.prerequisite.id } }"
+            class="button secondary"
+          >
+            <span aria-hidden="true">{{ stateIcon[result.way_out.prerequisite.state] }}</span>
+            <span class="visually-hidden">{{ stateLabel[result.way_out.prerequisite.state] }}: </span>
+            {{ result.way_out.prerequisite.state === 'mastered' ? 'Review' : 'Learn' }}
+            {{ result.way_out.prerequisite.name }} first
+          </RouterLink>
+          <RouterLink
+            v-if="result.way_out.other_concept"
+            :to="{ name: 'learn', params: { id: result.way_out.other_concept.id } }"
+            class="button secondary"
+          >
+            Come back later – learn {{ result.way_out.other_concept.name }} now
+          </RouterLink>
+          <RouterLink
+            v-else
+            :to="{ name: 'document', params: { id: session.document_id } }"
+            class="button secondary"
+          >
+            Come back later
+          </RouterLink>
+        </div>
+      </section>
+
+      <p v-if="advancing" class="learn-status muted" aria-live="polite">
+        Preparing the next question…
+      </p>
+      <div v-if="advanceError" class="learn-error">
+        <p class="error" role="alert">{{ advanceError }}</p>
+        <button @click="next">Try again</button>
+      </div>
+
+      <section v-if="nothingToAsk" class="learn-card">
+        <p class="muted">This concept has no key ideas to ask about.</p>
         <div class="actions">
           <RouterLink
             :to="{ name: 'document', params: { id: session.document_id } }"

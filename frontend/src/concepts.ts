@@ -1,4 +1,4 @@
-import type { Chunk, ConceptState, KeyIdeaStatus } from './api'
+import type { Chunk, ConceptState, Explanation, KeyIdeaStatus } from './api'
 
 /** Mastery a concept needs, besides all key ideas last answered correctly. */
 export const MASTERY_THRESHOLD = 0.7
@@ -41,4 +41,10 @@ export const keyIdeaLabel: Record<KeyIdeaStatus, string> = {
 /** 1.5 → "1.5", 2 → "2" */
 export function formatPoints(points: number) {
   return Number.isInteger(points) ? String(points) : points.toFixed(1)
+}
+
+export const angleLabel: Record<Explanation['angle'], string> = {
+  analogy: 'With an analogy',
+  example: 'With an example',
+  step_by_step: 'Step by step',
 }

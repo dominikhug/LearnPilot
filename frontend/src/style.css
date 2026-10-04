@@ -202,7 +202,7 @@ textarea {
 
 .doc-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 6rem 6rem 7rem 8rem 5rem;
+  grid-template-columns: minmax(0, 1fr) 6rem 9rem 7rem 8rem 5rem;
   align-items: center;
   gap: 1rem;
   padding: 0.75rem 1rem;
@@ -694,6 +694,71 @@ button.link {
 .dispute p {
   margin: 0;
   font-size: 0.875rem;
+}
+
+.explanation-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.way-out p {
+  margin: 0.75rem 0 0;
+}
+
+.actions.start {
+  justify-content: flex-start;
+}
+
+.actions.centered-actions {
+  justify-content: center;
+}
+
+/* Concept completed: centred */
+
+.learn-complete {
+  margin-top: 2rem;
+  padding: 2rem 1.25rem;
+  text-align: center;
+}
+
+.learn-complete h1 {
+  overflow-wrap: anywhere;
+}
+
+.learn-complete h2 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1rem;
+}
+
+/* Locked-concept dialog and "Start learning" on the hub */
+
+.locked-prerequisites {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.locked-prerequisites li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.locked-prerequisite-name {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.actions.stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.start-learning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
 }
 
 @media (max-width: 768px) {

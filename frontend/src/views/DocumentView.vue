@@ -6,6 +6,7 @@ import ConceptDetails from '../components/ConceptDetails.vue'
 import ConceptList from '../components/ConceptList.vue'
 import GraphCanvas from '../components/GraphCanvas.vue'
 import AppHeader from '../components/AppHeader.vue'
+import LockedConceptDialog from '../components/LockedConceptDialog.vue'
 import { stateIcon, stateLabel } from '../concepts'
 
 const props = defineProps<{ id: number }>()
@@ -27,6 +28,16 @@ const selected = computed(() =>
   selectedId.value === null ? undefined : conceptsById.value.get(selectedId.value),
 )
 const legendStates = ['locked', 'unlocked', 'in_progress', 'mastered'] as const
+const nextConcept = computed(() =>
+  graph.value?.next_concept_id == null
+    ? undefined
+    : conceptsById.value.get(graph.value.next_concept_id),
+)
+// The locked concept whose confirmation dialog is open.
+const lockedId = ref<number | null>(null)
+const locked = computed(() =>
+  lockedId.value === null ? null : (conceptsById.value.get(lockedId.value) ?? null),
+)
 
 onMounted(async () => {
   phoneQuery.addEventListener('change', onBreakpoint)
@@ -44,8 +55,18 @@ onMounted(async () => {
     error.value = errorMessage(e)
   }
 })
-function learn(conceptId: number) {
-  router.push({ name: 'learn', params: { id: conceptId } })
+/** A locked concept asks for confirmation first; once started it is in progress. */
+function learn(conceptId: number, startLocked = false) {
+  if (!startLocked && conceptsById.value.get(conceptId)?.state === 'locked') {
+    lockedId.value = conceptId
+    return
+  }
+  lockedId.value = null
+  router.push({
+    name: 'learn',
+    params: { id: conceptId },
+    query: startLocked ? { start: 'locked' } : {},
+  })
 }
 
 onUnmounted(() => phoneQuery.removeEventListener('change', onBreakpoint))
@@ -57,7 +78,16 @@ onUnmounted(() => phoneQuery.removeEventListener('change', onBreakpoint))
     <RouterLink to="/" class="muted">← Library</RouterLink>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <template v-if="document && graph">
-      <h1>{{ document.title }}</h1>
+      <div class="page-head">
+        <h1>{{ document.title }}</h1>
+        <div v-if="nextConcept" class="start-learning">
+          <button @click="learn(nextConcept.id)">Start learning</button>
+          <span class="muted">Next: {{ nextConcept.name }}</span>
+        </div>
+        <p v-else-if="graph.concepts.length" class="muted">
+          <span aria-hidden="true">{{ stateIcon.mastered }}</span> All concepts mastered
+        </p>
+      </div>
       <p class="muted">
         {{ graph.concepts.length }} concepts · {{ document.language?.toUpperCase() ?? '—' }} ·
         {{ document.token_count?.toLocaleString() }} tokens
@@ -99,6 +129,13 @@ onUnmounted(() => phoneQuery.removeEventListener('change', onBreakpoint))
           @learn="learn"
         />
       </div>
+
+      <LockedConceptDialog
+        :concept="locked"
+        :concepts-by-id="conceptsById"
+        @learn="learn"
+        @cancel="lockedId = null"
+      />
     </template>
   </main>
 </template>

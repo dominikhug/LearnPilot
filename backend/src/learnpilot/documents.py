@@ -14,7 +14,15 @@ from learnpilot.ingestion import (
     extract_chunks,
     title_from_filename,
 )
-from learnpilot.models import Chunk, Concept, Document, DocumentStatus, ProcessingStep
+from learnpilot.models import (
+    Chunk,
+    Concept,
+    ConceptStatus,
+    Document,
+    DocumentStatus,
+    LearnerConceptState,
+    ProcessingStep,
+)
 from learnpilot.processing import can_retry, process_document
 
 # Generous upper bound on characters per token: text longer than this many
@@ -36,14 +44,22 @@ class DocumentOut(BaseModel):
     error_message: str | None
     can_retry: bool
     concept_count: int
+    mastered_count: int
     created_at: datetime
 
     @classmethod
-    def of(cls, document: Document, concept_count: int = 0) -> "DocumentOut":
+    def of(
+        cls, document: Document, concept_count: int = 0, mastered_count: int = 0
+    ) -> "DocumentOut":
         # Attribute access (unlike model_dump) reloads an instance expired by commit.
-        stored = cls.model_fields.keys() - {"can_retry", "concept_count"}
+        stored = cls.model_fields.keys() - {"can_retry", "concept_count", "mastered_count"}
         fields = {name: getattr(document, name) for name in stored}
-        return cls(**fields, can_retry=can_retry(document), concept_count=concept_count)
+        return cls(
+            **fields,
+            can_retry=can_retry(document),
+            concept_count=concept_count,
+            mastered_count=mastered_count,
+        )
 
 
 class LimitsOut(BaseModel):
@@ -75,12 +91,24 @@ def list_documents(user: CurrentUser, session: DbSession) -> list[DocumentOut]:
         .correlate(Document)
         .scalar_subquery()
     )
+    mastered_count = (
+        select(func.count())
+        .select_from(LearnerConceptState)
+        .join(Concept, col(Concept.id) == LearnerConceptState.concept_id)
+        .where(
+            Concept.document_id == Document.id,
+            LearnerConceptState.user_id == user.id,
+            LearnerConceptState.status == ConceptStatus.mastered,
+        )
+        .correlate(Document)
+        .scalar_subquery()
+    )
     rows = session.exec(
-        select(Document, concept_count)
+        select(Document, concept_count, mastered_count)
         .where(Document.user_id == user.id)
         .order_by(col(Document.created_at).desc(), col(Document.id).desc())
     )
-    return [DocumentOut.of(d, count) for d, count in rows]
+    return [DocumentOut.of(d, count, mastered) for d, count, mastered in rows]
 
 
 @router.get("/limits")

@@ -51,6 +51,7 @@ export interface Document {
   error_message: string | null
   can_retry: boolean
   concept_count: number
+  mastered_count: number
   created_at: string
 }
 
@@ -82,6 +83,8 @@ export interface Concept {
   source_chunk_ids: number[]
   key_idea_count: number
   tested_key_ideas: TestedKeyIdea[]
+  /** Locked concepts only: the missing prerequisite to learn first. */
+  learn_first_id: number | null
 }
 
 export interface ConceptEdge {
@@ -93,6 +96,8 @@ export interface ConceptEdge {
 export interface ConceptGraph {
   concepts: Concept[]
   edges: ConceptEdge[]
+  /** The automatic choice for "Start learning"; null when everything is mastered. */
+  next_concept_id: number | null
 }
 
 export interface Limits {
@@ -121,11 +126,26 @@ export interface Question {
   number: number
   text: string
   level: 'explain' | 'apply'
+  origin: 'plan' | 'follow_up'
   points: number
 }
 
 export interface KeyIdeaFeedback extends TestedKeyIdea {
   feedback: string
+}
+
+export interface KeyIdeaRef {
+  id: number
+  text: string
+}
+
+export interface Explanation {
+  id: number
+  answer_id: number
+  key_ideas: KeyIdeaRef[]
+  angle: 'analogy' | 'example' | 'step_by_step'
+  text: string
+  source_chunk_ids: number[]
 }
 
 export interface Answer {
@@ -141,6 +161,8 @@ export interface Answer {
   dispute_reason: string | null
   regraded: boolean
   can_dispute: boolean
+  needs_explanation: boolean
+  explanation: Explanation | null
 }
 
 export interface LearningSession {
@@ -155,15 +177,41 @@ export interface LearningSession {
   ungraded_answer: Answer | null
 }
 
+export interface ConceptRef {
+  id: number
+  name: string
+  state: ConceptState
+  mastery: number
+}
+
+export interface Completion {
+  mastery: number
+  newly_unlocked: ConceptRef[]
+  next_concept: ConceptRef | null
+  document_completed: boolean
+}
+
+export interface WayOut {
+  key_ideas: KeyIdeaRef[]
+  prerequisite: ConceptRef | null
+  other_concept: ConceptRef | null
+}
+
 export interface Graded {
   answer: Answer
   mastery_before: number
   session: LearningSession
+  completed: Completion | null
+  way_out: WayOut | null
 }
 
 export const learning = {
-  start: (conceptId: number) =>
-    api<LearningSession>(`/concepts/${conceptId}/session`, { method: 'POST' }),
+  /** Starts or resumes a concept; a locked one needs startLocked. */
+  start: (conceptId: number, startLocked = false) =>
+    api<LearningSession>(
+      `/concepts/${conceptId}/session${startLocked ? '?start_locked=true' : ''}`,
+      { method: 'POST' },
+    ),
   answer: (questionId: number, text: string) =>
     api<Graded>(`/questions/${questionId}/answer`, {
       method: 'POST',
@@ -175,6 +223,8 @@ export const learning = {
       method: 'POST',
       body: JSON.stringify({ reason }),
     }),
+  explain: (answerId: number) =>
+    api<Explanation>(`/answers/${answerId}/explanation`, { method: 'POST' }),
 }
 
 /** Where a document opens: its hub when ready, otherwise the processing screen. */

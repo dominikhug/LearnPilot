@@ -42,7 +42,10 @@ const sources = computed(() =>
       <button v-if="concept.state !== 'locked'" @click="emit('learn', concept.id)">
         {{ learnLabel[concept.state] }}
       </button>
-      <p v-else class="muted">Locked until its prerequisites are mastered.</p>
+      <template v-else>
+        <p class="muted">Locked until its prerequisites are mastered.</p>
+        <button class="secondary" @click="emit('learn', concept.id)">Start learning…</button>
+      </template>
     </div>
 
     <h3>Mastery</h3>

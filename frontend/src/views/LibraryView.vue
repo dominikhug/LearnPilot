@@ -133,7 +133,10 @@ onMounted(load)
         </span>
         <span class="doc-meta">
           <span class="label">Concepts</span>
-          {{ document.status === 'ready' ? document.concept_count : '—' }}
+          <template v-if="document.status === 'ready'">
+            {{ document.mastered_count }} / {{ document.concept_count }} mastered
+          </template>
+          <template v-else>—</template>
         </span>
         <span class="doc-meta">
           <span class="label">Status</span>

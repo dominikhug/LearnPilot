@@ -21,7 +21,12 @@ from learnpilot.auth import throttle  # noqa: E402
 from learnpilot.extraction import Extraction  # noqa: E402
 from learnpilot.main import app  # noqa: E402
 from learnpilot.models import DEFAULT_USER_ID, User  # noqa: E402
-from learnpilot.tutoring import Grading, QuestionPlan  # noqa: E402
+from learnpilot.tutoring import (  # noqa: E402
+    FollowUpQuestion,
+    GapExplanation,
+    Grading,
+    QuestionPlan,
+)
 
 
 @pytest.fixture
@@ -119,17 +124,20 @@ def extractor(monkeypatch):
 
 @pytest.fixture
 def tutor(monkeypatch, extractor):
-    """Replaces question-plan and grading calls; extraction still goes to `extractor`.
+    """Replaces the tutoring calls; extraction still goes to `extractor`.
 
     .plan: None (two questions, each testing every key idea), a function of the key
     idea ids returning a QuestionPlan, or an exception; a list is used up call by call.
     .grade: a status for every tested key idea, a function of the tested ids
     returning a Grading, or an exception; a list is used up call by call.
+    .follow_up and .explain: None (a canned result) or an exception.
     """
 
     class Tutor:
         plan: object = None
         grade: object = "correct"
+        follow_up: object = None
+        explain: object = None
         calls: list[dict] = []
 
         def __call__(self, *, system, user, output_type, effort, context=None, max_tokens=0):
@@ -157,6 +165,22 @@ def tutor(monkeypatch, extractor):
                         }
                     )
                 return self._result(result, key_idea_ids, usage)
+            if output_type is FollowUpQuestion:
+                targets = re.search(r"Key ideas to test: ([\d, ]+)", user)[1]
+                result = self._next("follow_up")
+                if result is None:
+                    result = lambda _: FollowUpQuestion(  # noqa: E731
+                        level="apply", text=f"Follow-up on {targets}", source_chunk_ids=[]
+                    )
+                return self._result(result, None, usage)
+            if output_type is GapExplanation:
+                result = self._next("explain")
+                if result is None:
+                    angle = re.search(r"Angle: (\w+)", user)[1]
+                    result = lambda _: GapExplanation(  # noqa: E731
+                        text=f"Explained by {angle}.", source_chunk_ids=[999]
+                    )
+                return self._result(result, None, usage)
             tested = [
                 int(i) for i in re.search(r"Key ideas to grade: ([\d, ]+)", user)[1].split(",")
             ]
