@@ -1,14 +1,15 @@
 import logging
 from dataclasses import dataclass
+from datetime import datetime, time, timedelta
 from functools import cache
 from typing import Literal
 
 import anthropic
 from pydantic import BaseModel, ValidationError
-from sqlmodel import Session
+from sqlmodel import Session, col, func, select
 
 from learnpilot.config import settings
-from learnpilot.models import Document, LlmCall, LlmPurpose
+from learnpilot.models import Document, LlmCall, LlmPurpose, utcnow
 
 log = logging.getLogger(__name__)
 
@@ -21,6 +22,10 @@ FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
 class LlmNotConfiguredError(Exception):
     pass
+
+
+class DailyLimitReachedError(Exception):
+    """DAILY_TOKEN_LIMIT is used up; AI features pause until the next day (UTC)."""
 
 
 @cache
@@ -122,6 +127,11 @@ def generate[T: BaseModel](
 def error_message(error: Exception) -> str | None:
     """A message for the user when `error` comes from calling the AI service."""
     match error:
+        case DailyLimitReachedError():
+            return (
+                f"The daily AI limit of {settings.daily_token_limit:,} tokens is used up. "
+                "AI features resume at midnight UTC."
+            )
         case LlmNotConfiguredError():
             return "The AI service is not configured. Check ANTHROPIC_API_KEY on the server."
         case anthropic.AuthenticationError():
@@ -154,3 +164,34 @@ def log_call(
         )
     )
     session.commit()
+
+
+def day_start(now: datetime | None = None) -> datetime:
+    """Midnight UTC of the current day; the daily limit counts from here."""
+    now = now or utcnow()
+    return datetime.combine(now.date(), time(), tzinfo=now.tzinfo)
+
+
+def next_day_start(now: datetime | None = None) -> datetime:
+    return day_start(now) + timedelta(days=1)
+
+
+def tokens_used_today(session: Session) -> int:
+    """Input and output tokens of all users since midnight UTC.
+
+    The limit caps what the API key costs, so it is shared by all users.
+    """
+    return session.exec(
+        select(func.coalesce(func.sum(LlmCall.input_tokens + LlmCall.output_tokens), 0)).where(
+            col(LlmCall.created_at) >= day_start()
+        )
+    ).one()
+
+
+def check_daily_limit(session: Session) -> None:
+    """Raises before a call once the limit is reached.
+
+    Checked before, not during, a call: the last call of a day may go over the limit.
+    """
+    if tokens_used_today(session) >= settings.daily_token_limit:
+        raise DailyLimitReachedError()

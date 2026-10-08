@@ -13,6 +13,9 @@ async function logout() {
 <template>
   <header class="topbar">
     <RouterLink to="/" class="brand">LearnPilot</RouterLink>
-    <button class="secondary" @click="logout">Log out</button>
+    <nav class="topbar-nav">
+      <RouterLink to="/usage">AI usage</RouterLink>
+      <button class="secondary" @click="logout">Log out</button>
+    </nav>
   </header>
 </template>

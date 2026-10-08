@@ -248,6 +248,36 @@ export const learning = {
     api<Explanation>(`/answers/${answerId}/explanation`, { method: 'POST' }),
 }
 
+export type LlmPurpose =
+  | 'concept_extraction'
+  | 'question_plan'
+  | 'grading'
+  | 'follow_up_question'
+  | 'explanation'
+
+export interface Tokens {
+  calls: number
+  input_tokens: number
+  output_tokens: number
+}
+
+export interface Usage {
+  /** All users' tokens today; the daily limit counts these. */
+  used_today: number
+  daily_limit: number
+  resets_at: string
+  paused: boolean
+  /** The current user's calls, all time. */
+  total: Tokens
+  /** document_id null: documents deleted since. */
+  by_document: (Tokens & { document_id: number | null; title: string | null })[]
+  by_purpose: (Tokens & { purpose: LlmPurpose })[]
+}
+
+export const usage = {
+  get: () => api<Usage>('/usage'),
+}
+
 /** Where a document opens: its hub when ready, otherwise the processing screen. */
 export function documentRoute(document: Document) {
   return document.status === 'ready'

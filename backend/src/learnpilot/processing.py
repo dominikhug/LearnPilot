@@ -48,6 +48,8 @@ def process_document(document_id: int) -> None:
             session.rollback()
         except (llm.LlmOutputError, extraction.ExtractionError) as e:
             _fail(session, document_id, f"Finding concepts failed. {e}")
+        except llm.DailyLimitReachedError as e:
+            _fail(session, document_id, f"{llm.error_message(e)} Retry then.")
         except Exception as e:
             log.exception("Processing failed for document %s", document_id)
             message = llm.error_message(e) or "Processing failed unexpectedly. Try again."
@@ -57,6 +59,7 @@ def process_document(document_id: int) -> None:
 def _run(session: Session, document_id: int) -> None:
     document = _set_step(session, document_id, ProcessingStep.counting_tokens)
     chunks = extraction.document_chunks(session, document_id)
+    llm.check_daily_limit(session)
     tokens = llm.count_tokens("\n\n".join(c.text for c in chunks))
 
     document = _reload(session, document_id)

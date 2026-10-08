@@ -1,5 +1,13 @@
 import os
 import re
+from pathlib import Path
+
+from dotenv import dotenv_values
+
+# For the opt-in live tests only (LEARNPILOT_LIVE_LLM=1); read before it is blanked below.
+LIVE_API_KEY = os.environ.get("ANTHROPIC_API_KEY") or dotenv_values(
+    Path(__file__).resolve().parents[2] / ".env"
+).get("ANTHROPIC_API_KEY", "")
 
 # Must be set before learnpilot.config is imported; environment beats .env.
 os.environ.update(

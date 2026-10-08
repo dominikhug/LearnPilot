@@ -48,6 +48,12 @@ cd backend && uv run pytest && uv run ruff check . && uv run ruff format --check
 cd frontend && npm run build
 ```
 
+Tests never call the real AI service. A few checks do (prompt injection against grading); they cost a few thousand tokens and run only on request:
+
+```bash
+cd backend && LEARNPILOT_LIVE_LLM=1 uv run pytest tests/test_live_llm.py
+```
+
 ## Deployment (Railway)
 
 One service built from the root `Dockerfile` plus the PostgreSQL add-on. Set `DATABASE_URL` (reference the add-on), `APP_PASSWORD`, `SESSION_SECRET` and `ANTHROPIC_API_KEY` as service variables. Migrations run automatically on start; the health check is `/api/health`.

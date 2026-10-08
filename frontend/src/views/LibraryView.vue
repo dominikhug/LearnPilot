@@ -1,13 +1,22 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { type Document, type Limits, documentRoute, documents, errorMessage } from '../api'
+import {
+  type Document,
+  type Limits,
+  type Usage,
+  documentRoute,
+  documents,
+  errorMessage,
+  usage as usageApi,
+} from '../api'
 import AppHeader from '../components/AppHeader.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 
 const router = useRouter()
 const items = ref<Document[]>([])
 const limits = ref<Limits>()
+const usage = ref<Usage>()
 const loading = ref(true)
 const loadError = ref('')
 const uploadError = ref('')
@@ -26,7 +35,11 @@ const statusLabel: Record<Document['status'], string> = {
 async function load() {
   loadError.value = ''
   try {
-    ;[items.value, limits.value] = await Promise.all([documents.list(), documents.limits()])
+    ;[items.value, limits.value, usage.value] = await Promise.all([
+      documents.list(),
+      documents.limits(),
+      usageApi.get(),
+    ])
   } catch (e) {
     loadError.value = errorMessage(e)
   } finally {
@@ -84,6 +97,10 @@ async function confirmDelete() {
   }
 }
 
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString(undefined, { timeStyle: 'short' })
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' })
 }
@@ -112,6 +129,10 @@ onMounted(load)
       {{ limits.max_document_tokens.toLocaleString() }} tokens
     </p>
     <p v-if="uploadError" class="error" role="alert">{{ uploadError }}</p>
+    <p v-if="usage?.paused" class="notice" role="status">
+      The daily AI limit is used up. Uploads, questions and grading resume at
+      {{ formatTime(usage.resets_at) }}. <RouterLink to="/usage">Details</RouterLink>
+    </p>
 
     <p v-if="loading" class="muted">Loading…</p>
     <p v-else-if="loadError" class="error" role="alert">

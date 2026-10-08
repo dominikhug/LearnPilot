@@ -280,6 +280,7 @@ def explain_answer(answer_id: int, user: CurrentUser, session: DbSession) -> Exp
 
     user_id, concept_id, document_id = user.id, concept.id, document.id
     try:
+        llm.check_daily_limit(session)
         result = tutoring.explain_gaps(
             context=tutoring.build_context(concept, key_ideas, chunks),
             question_text=question.text,
@@ -379,6 +380,7 @@ def _plan_questions(session: Session, user: User, concept: Concept, document: Do
     key_ideas, chunks = _material(session, concept)
     user_id, concept_id, document_id = user.id, concept.id, document.id
     try:
+        llm.check_daily_limit(session)
         result = tutoring.plan_questions(
             tutoring.build_context(concept, key_ideas, chunks),
             [k.id for k in key_ideas],
@@ -448,6 +450,7 @@ def _current_question(
     user_id, concept_id, document_id = user.id, concept.id, document.id
     position = max((q.position for q in questions), default=-1) + 1
     try:
+        llm.check_daily_limit(session)
         result = tutoring.write_follow_up(
             context=tutoring.build_context(concept, key_ideas, chunks),
             key_idea_ids=choice.key_idea_ids,
@@ -498,6 +501,7 @@ def _grade(
     answer.points_possible = len(tested)
     user_id, document_id = user.id, document.id
     try:
+        llm.check_daily_limit(session)
         result = tutoring.grade_answer(
             context=tutoring.build_context(concept, key_ideas, chunks),
             question_text=question.text,
@@ -596,6 +600,8 @@ def _llm_failed(
     message = llm.error_message(error)
     if message is None:
         raise error
+    if isinstance(error, llm.DailyLimitReachedError):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, message) from error
     if isinstance(error, llm.LlmOutputError):
         llm.log_call(session, user_id, document_id, purpose, error.usage)
     elif isinstance(error, anthropic.APIError):

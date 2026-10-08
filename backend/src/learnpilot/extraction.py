@@ -101,14 +101,20 @@ def build_prompt(title: str, chunks: list[Chunk]) -> str:
     parts = [f'<document title="{_attr(title)}">']
     for chunk in chunks:
         parts.append(f'<chunk id="{chunk.id}" location="{_attr(chunk_location(chunk))}">')
-        parts.append(chunk.text)
+        # Escaped, so document text cannot close the block and pose as instructions.
+        parts.append(escape(chunk.text))
         parts.append("</chunk>")
     parts.append("</document>")
     return "\n".join(parts)
 
 
+def escape(text: str) -> str:
+    """Escapes data placed inside a delimited block of a prompt."""
+    return text.replace("&", "&amp;").replace("<", "&lt;")
+
+
 def _attr(value: str) -> str:
-    return value.replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
+    return escape(value).replace('"', "&quot;")
 
 
 def validate(extraction: Extraction, chunk_ids: set[int]) -> GraphDraft:

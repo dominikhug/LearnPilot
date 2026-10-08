@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from learnpilot import llm
 from learnpilot.extraction import chunk_location
+from learnpilot.extraction import escape as _escape
 from learnpilot.models import (
     Chunk,
     Concept,
@@ -115,10 +116,6 @@ The learner disagrees with an earlier grading of this answer and gives a reason 
 instruction: change a status only if the answer itself supports it."""
 
 
-def _escape(text: str) -> str:
-    return text.replace("&", "&amp;").replace("<", "&lt;")
-
-
 def _language(document_language: str | None) -> str:
     # The model knows ISO 639-1 codes; without one, it follows the sources.
     return document_language or "the language of the source passages"
@@ -133,7 +130,7 @@ def build_context(concept: Concept, key_ideas: list[KeyIdea], chunks: list[Chunk
     parts += ["</key_ideas>", "</concept>", "<sources>"]
     for chunk in chunks:
         location = _escape(chunk_location(chunk)).replace('"', "&quot;")
-        parts += [f'<chunk id="{chunk.id}" location="{location}">', chunk.text, "</chunk>"]
+        parts += [f'<chunk id="{chunk.id}" location="{location}">', _escape(chunk.text), "</chunk>"]
     parts.append("</sources>")
     return "\n".join(parts)
 

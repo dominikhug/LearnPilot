@@ -5,6 +5,7 @@ import LearnView from './views/LearnView.vue'
 import LibraryView from './views/LibraryView.vue'
 import LoginView from './views/LoginView.vue'
 import ProcessingView from './views/ProcessingView.vue'
+import UsageView from './views/UsageView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -29,6 +30,7 @@ export const router = createRouter({
       component: LearnView,
       props: (route) => ({ id: Number(route.params.id) }),
     },
+    { path: '/usage', name: 'usage', component: UsageView },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
