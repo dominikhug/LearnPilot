@@ -14,8 +14,10 @@ const props = defineProps<{
   concept: Concept
   conceptsById: Map<number, Concept>
   chunksById: Map<number, Chunk>
+  /** Desktop only: editing touch screens is error-prone. */
+  editable?: boolean
 }>()
-const emit = defineEmits<{ close: []; select: [id: number]; learn: [id: number] }>()
+const emit = defineEmits<{ close: []; select: [id: number]; learn: [id: number]; edit: [] }>()
 
 const learnLabel = { unlocked: 'Start learning', in_progress: 'Continue learning', mastered: 'Review' }
 
@@ -31,6 +33,7 @@ const sources = computed(() =>
 <template>
   <section class="concept-details" :aria-label="`Details: ${concept.name}`">
     <div class="concept-details-head">
+      <button v-if="editable" class="secondary small" @click="emit('edit')">Edit</button>
       <button class="secondary small" @click="emit('close')">Close</button>
     </div>
     <h2>{{ concept.name }}</h2>

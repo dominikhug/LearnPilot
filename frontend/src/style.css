@@ -575,6 +575,53 @@ button.link {
   margin-bottom: 0.25rem;
 }
 
+/* Graph editing (desktop only) */
+
+.concept-editor .hint {
+  margin: 0.5rem 0 0;
+}
+
+.editor-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.editor-row select {
+  font: inherit;
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.editor-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.editor-buttons {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.25rem;
+}
+
+.key-idea-form {
+  flex: 1;
+}
+
+.key-idea-form .actions {
+  margin-top: 0.5rem;
+}
+
 /* Learning session: one column at reading width */
 
 .page.learn {

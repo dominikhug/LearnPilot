@@ -158,7 +158,7 @@ def start_session(
     The first start plans the questions. A locked concept starts only with
     `start_locked`; once started it is in progress and needs no confirmation again.
     """
-    concept, document = _owned_concept(session, user, concept_id)
+    concept, document = owned_concept(session, user, concept_id)
     state = _concept_state(session, user.id, concept_id) or LearnerConceptState(
         user_id=user.id, concept_id=concept_id, status=ConceptStatus.untouched
     )
@@ -245,7 +245,7 @@ def explain_answer(answer_id: int, user: CurrentUser, session: DbSession) -> Exp
     a failed explanation never loses the grading.
     """
     answer, question = _owned_answer(session, user, answer_id)
-    concept, document = _owned_concept(session, user, question.concept_id)
+    concept, document = owned_concept(session, user, question.concept_id)
     key_ideas, chunks = _material(session, concept)
     by_id = {k.id: k for k in key_ideas}
     existing = _explanation_of(session, answer_id)
@@ -313,7 +313,7 @@ def explain_answer(answer_id: int, user: CurrentUser, session: DbSession) -> Exp
     return _explanation_out(explanation, by_id)
 
 
-def _owned_concept(session: Session, user: User, concept_id: int) -> tuple[Concept, Document]:
+def owned_concept(session: Session, user: User, concept_id: int) -> tuple[Concept, Document]:
     row = session.exec(
         select(Concept, Document)
         .join(Document, col(Document.id) == Concept.document_id)
@@ -484,17 +484,24 @@ def _grade(
     question: Question,
     dispute: tutoring.Dispute | None = None,
 ) -> GradedOut:
-    concept, document = _owned_concept(session, user, question.concept_id)
+    concept, document = owned_concept(session, user, question.concept_id)
     key_ideas, chunks = _material(session, concept)
     state = _concept_state(session, user.id, concept.id)
     mastery_before = state.mastery if state else 0.0
     was_mastered = state is not None and state.status == ConceptStatus.mastered
+    # Key ideas edited or deleted since the question was answered are not graded again.
+    tested = [i for i in question.tested_key_idea_ids if i in {k.id for k in key_ideas}]
+    if not tested:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "The key ideas this question tested were changed."
+        )
+    answer.points_possible = len(tested)
     user_id, document_id = user.id, document.id
     try:
         result = tutoring.grade_answer(
             context=tutoring.build_context(concept, key_ideas, chunks),
             question_text=question.text,
-            tested_key_idea_ids=question.tested_key_idea_ids,
+            tested_key_idea_ids=tested,
             answer=answer.text,
             language=document.language,
             dispute=dispute,
@@ -510,7 +517,7 @@ def _grade(
     answer.score = learner.score(grades)
     answer.regraded = answer.regraded or dispute is not None
     session.flush()
-    progress, answers = _update_progress(session, user_id, concept.id, key_ideas)
+    progress, answers = update_progress(session, user_id, concept.id, key_ideas)
     session.commit()
 
     key_ideas_by_id = {k.id: k for k in key_ideas}
@@ -596,13 +603,14 @@ def _llm_failed(
     raise HTTPException(status.HTTP_502_BAD_GATEWAY, message) from error
 
 
-def _update_progress(
-    session: Session, user_id: int, concept_id: int, key_ideas: list[KeyIdea]
+def update_progress(
+    session: Session, user_id: int, concept_id: int, key_ideas: list[KeyIdea], seen: bool = True
 ) -> tuple[learner.Progress, list[Answer]]:
     """Rebuilds the concept's learner state from its answer history.
 
     A full replay rather than an increment, so a re-graded answer in the middle
-    of the history is accounted for in the right order.
+    of the history is accounted for in the right order. `seen` is false after a
+    graph edit, which must not count as having worked on the concept.
     """
     answers = _graded_answers(session, user_id, concept_id)
     progress = learner.replay(
@@ -613,7 +621,8 @@ def _update_progress(
         user_id=user_id, concept_id=concept_id, status=ConceptStatus.in_progress
     )
     state.mastery = progress.mastery
-    state.last_seen = utcnow()
+    if seen:
+        state.last_seen = utcnow()
     # Mastered is permanent; it is only ever set here, never taken back.
     if progress.mastered_after is not None and state.status != ConceptStatus.mastered:
         state.status = ConceptStatus.mastered

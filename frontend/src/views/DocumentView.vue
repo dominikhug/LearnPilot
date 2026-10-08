@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { type Chunk, type ConceptGraph, type Document, documents, errorMessage } from '../api'
 import ConceptDetails from '../components/ConceptDetails.vue'
+import ConceptEditor from '../components/ConceptEditor.vue'
 import ConceptList from '../components/ConceptList.vue'
 import GraphCanvas from '../components/GraphCanvas.vue'
 import AppHeader from '../components/AppHeader.vue'
@@ -16,6 +17,8 @@ const graph = ref<ConceptGraph>()
 const chunks = ref<Chunk[]>([])
 const error = ref('')
 const selectedId = ref<number | null>(null)
+// The side panel shows the editor instead of the details (desktop only).
+const editing = ref(false)
 
 // One breakpoint: phones get the list by level instead of the graph.
 const phoneQuery = window.matchMedia('(max-width: 768px)')
@@ -55,6 +58,25 @@ onMounted(async () => {
     error.value = errorMessage(e)
   }
 })
+async function reloadGraph() {
+  try {
+    graph.value = await documents.graph(props.id)
+  } catch (e) {
+    error.value = errorMessage(e)
+  }
+}
+
+function onDeleted() {
+  editing.value = false
+  selectedId.value = null
+  reloadGraph()
+}
+
+function close() {
+  editing.value = false
+  selectedId.value = null
+}
+
 /** A locked concept asks for confirmation first; once started it is in progress. */
 function learn(conceptId: number, startLocked = false) {
   if (!startLocked && conceptsById.value.get(conceptId)?.state === 'locked') {
@@ -118,15 +140,27 @@ onUnmounted(() => phoneQuery.removeEventListener('change', onBreakpoint))
 
       <div v-else class="hub-graph" :class="{ 'with-panel': selected }">
         <GraphCanvas :graph="graph" :selected-id="selectedId" @select="selectedId = $event" />
+        <ConceptEditor
+          v-if="selected && editing"
+          :key="selected.id"
+          class="side-panel"
+          :concept="selected"
+          :concepts-by-id="conceptsById"
+          @done="editing = false"
+          @changed="reloadGraph"
+          @deleted="onDeleted"
+        />
         <ConceptDetails
-          v-if="selected"
+          v-else-if="selected"
           class="side-panel"
           :concept="selected"
           :concepts-by-id="conceptsById"
           :chunks-by-id="chunksById"
-          @close="selectedId = null"
+          editable
+          @close="close"
           @select="selectedId = $event"
           @learn="learn"
+          @edit="editing = true"
         />
       </div>
 

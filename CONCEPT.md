@@ -83,6 +83,10 @@ LearnPilot turns an uploaded document into a **map of prerequisites**, guides th
 - **New edge into a started or mastered concept**: its progress is kept. If the new prerequisite is not mastered yet, the concept behaves like one started early.
 - **Deleting a concept** (with confirmation): its key ideas, questions, answers, explanations, learner state and edges are deleted. Dependent concepts may become unlocked.
 - **Deleting a document** (with confirmation, from the library): everything belonging to it is deleted.
+- **New edges** that would close a cycle are rejected; an edge the user adds has confidence 1.0.
+- **Editing a key idea's text** replaces it with a new key idea, so grades given against the old text stop counting, even when an older answer is re-graded after "I disagree". Questions not graded yet test the new key idea instead.
+- **Deleting a key idea** (with confirmation): questions not graded yet stop testing it, and one left testing nothing is deleted. A concept keeps at least one key idea. Graded answers keep their evaluation.
+- After a key-idea change, mastery and key-idea states are recomputed from the answer history. This can make a concept mastered (e.g. when its only failing key idea is deleted), but never takes mastered back. It does not count as having worked on the concept.
 
 ### ⑤ Question generation
 

@@ -121,6 +121,27 @@ export const documents = {
   remove: (id: number) => api(`/documents/${id}`, { method: 'DELETE' }),
 }
 
+/** Graph editing lists every key idea, untested ones included. */
+export type KeyIdea = TestedKeyIdea
+
+export const editing = {
+  rename: (conceptId: number, name: string) =>
+    api(`/concepts/${conceptId}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  removeConcept: (conceptId: number) => api(`/concepts/${conceptId}`, { method: 'DELETE' }),
+  addPrerequisite: (conceptId: number, prerequisiteId: number) =>
+    api<ConceptEdge>(`/concepts/${conceptId}/prerequisites`, {
+      method: 'POST',
+      body: JSON.stringify({ prerequisite_id: prerequisiteId }),
+    }),
+  removePrerequisite: (conceptId: number, prerequisiteId: number) =>
+    api(`/concepts/${conceptId}/prerequisites/${prerequisiteId}`, { method: 'DELETE' }),
+  keyIdeas: (conceptId: number) => api<KeyIdea[]>(`/concepts/${conceptId}/key-ideas`),
+  /** A changed text resets the status; the key idea comes back with a new id. */
+  editKeyIdea: (keyIdeaId: number, text: string) =>
+    api<KeyIdea>(`/key-ideas/${keyIdeaId}`, { method: 'PATCH', body: JSON.stringify({ text }) }),
+  removeKeyIdea: (keyIdeaId: number) => api(`/key-ideas/${keyIdeaId}`, { method: 'DELETE' }),
+}
+
 export interface Question {
   id: number
   number: number

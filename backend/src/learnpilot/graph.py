@@ -52,6 +52,23 @@ def _find_cycle[N](nodes: list[N], edges: dict[Edge[N], float]) -> list[Edge[N]]
     return None
 
 
+def has_path[N](source: N, target: N, edges: Iterable[Edge[N]]) -> bool:
+    """True when `target` builds on `source`, directly or through other nodes."""
+    successors: dict[N, list[N]] = {}
+    for a, b in edges:
+        successors.setdefault(a, []).append(b)
+    pending, seen = [source], {source}
+    while pending:
+        node = pending.pop()
+        if node == target:
+            return True
+        for child in successors.get(node, []):
+            if child not in seen:
+                seen.add(child)
+                pending.append(child)
+    return False
+
+
 def levels[N](nodes: Iterable[N], edges: Iterable[Edge[N]]) -> dict[N, int]:
     """Level 1 has no prerequisites; level n builds only on lower levels. Needs a DAG."""
     prerequisites: dict[N, list[N]] = {node: [] for node in nodes}
