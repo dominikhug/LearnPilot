@@ -42,7 +42,7 @@ LearnPilot turns an uploaded document into a **map of prerequisites**, guides th
 ### ① Ingestion
 
 - Accepts PDF, Markdown and TXT (DOCX can be saved as PDF). Extracts the text and splits it into **chunks** with their source location (page/section).
-- Counts tokens with the Anthropic token-counting endpoint. Rejects documents above the limit with a clear message.
+- Counts tokens with the Anthropic token-counting endpoint (on the subscription: estimated at 4 characters per token). Rejects documents above the limit with a clear message.
 - Rejects documents without extractable text (e.g. scanned PDFs). OCR is out of scope for the MVP.
 - Only extracted text and chunks are stored; the original file is not kept.
 
@@ -359,12 +359,12 @@ Level 3
 | Frontend | Vue 3 + TypeScript; graph view with **Vue Flow** (nodes as Vue components) + **dagre** for the top-to-bottom layout. Graph logic (cycle check, levels, unlocking) lives in the backend |
 | Backend | Python + FastAPI; configuration via `pydantic-settings` |
 | Database | PostgreSQL (local: Docker Compose, hosted: Railway) + SQLModel/SQLAlchemy + Alembic |
-| LLM | Claude API (Python SDK `anthropic`) with structured outputs; default model `claude-opus-5-5` |
+| LLM | Claude with structured outputs; default model `claude-opus-5-5`. `LLM_AUTH=subscription` (default): Claude Agent SDK (`claude-agent-sdk`) on the Claude subscription, as a plain model call without tools, MCP servers or settings. `LLM_AUTH=api_key`: Claude API (Python SDK `anthropic`) |
 | Deployment | One Dockerfile (multi-stage) → one Railway service + PostgreSQL add-on |
 
 - **One service**: FastAPI serves the built Vue app as static files (one URL, no CORS).
 - Server listens on `0.0.0.0` and the `PORT` environment variable.
-- **Configuration only via environment variables**: `ANTHROPIC_API_KEY`, `LLM_MODEL`, `DATABASE_URL`, `MAX_DOCUMENT_TOKENS`, `MAX_UPLOAD_MB`, `DAILY_TOKEN_LIMIT`, `APP_PASSWORD`, `SESSION_SECRET`.
+- **Configuration only via environment variables**: `LLM_AUTH`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`, `LLM_MODEL`, `DATABASE_URL`, `MAX_DOCUMENT_TOKENS`, `MAX_UPLOAD_MB`, `DAILY_TOKEN_LIMIT`, `APP_PASSWORD`, `SESSION_SECRET`.
 - **Migrations** (`alembic upgrade head`) run before the server starts.
 - The container filesystem is treated as ephemeral; all state lives in PostgreSQL.
 
@@ -384,6 +384,7 @@ Level 3
 - **Login rate limit:** after 5 failed attempts, a 1-minute wait (kept in memory; sufficient with one instance).
 - **Upload limit:** `MAX_UPLOAD_MB` (e.g. 20 MB), checked before the file is parsed.
 - **Daily cost cap:** `DAILY_TOKEN_LIMIT`, summed from `LlmCall`. When reached, LLM features pause until the next day with a clear message.
+  - Only with `LLM_AUTH=api_key`. The subscription costs nothing extra and has 5-hour and weekly limits of its own (shared with Claude Code). When one is reached, the API answers 429 with the reset time, documents fail with "Retry", and the usage page shows when AI features resume.
   - The day starts at midnight UTC. Input tokens (cached ones included) and output tokens count alike.
   - The limit caps what the API key costs, so it is shared by all users.
   - Checked before each call, so the last call of a day may go over the limit.

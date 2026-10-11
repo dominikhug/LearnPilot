@@ -48,7 +48,7 @@ def process_document(document_id: int) -> None:
             session.rollback()
         except (llm.LlmOutputError, extraction.ExtractionError) as e:
             _fail(session, document_id, f"Finding concepts failed. {e}")
-        except llm.DailyLimitReachedError as e:
+        except (llm.DailyLimitReachedError, llm.SubscriptionLimitReachedError) as e:
             _fail(session, document_id, f"{llm.error_message(e)} Retry then.")
         except Exception as e:
             log.exception("Processing failed for document %s", document_id)

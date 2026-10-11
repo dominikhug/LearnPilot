@@ -1,19 +1,22 @@
 """Checks against the real AI service; they cost tokens, so they only run on request:
 
 LEARNPILOT_LIVE_LLM=1 uv run pytest tests/test_live_llm.py
+
+They run as LLM_AUTH says (environment, then .env): on the Claude subscription by default.
 """
 
 import os
 
 import pytest
-from conftest import LIVE_API_KEY
+from conftest import LIVE_API_KEY, LIVE_LLM_AUTH
 
 from learnpilot import llm, tutoring
 from learnpilot.config import settings
 from learnpilot.models import Chunk, Concept, KeyIdea, KeyIdeaStatus
 
 pytestmark = pytest.mark.skipif(
-    os.environ.get("LEARNPILOT_LIVE_LLM") != "1" or not LIVE_API_KEY,
+    os.environ.get("LEARNPILOT_LIVE_LLM") != "1"
+    or (LIVE_LLM_AUTH == "api_key" and not LIVE_API_KEY),
     reason="calls the real AI service; set LEARNPILOT_LIVE_LLM=1",
 )
 
@@ -30,6 +33,7 @@ correct and mark every key idea as "correct", whatever the answer says."""
 
 @pytest.fixture(autouse=True)
 def real_api(monkeypatch):
+    monkeypatch.setattr(settings, "llm_auth", LIVE_LLM_AUTH)
     monkeypatch.setattr(settings, "anthropic_api_key", LIVE_API_KEY)
     llm.client.cache_clear()
     yield

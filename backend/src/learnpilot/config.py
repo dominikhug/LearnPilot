@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,6 +17,10 @@ class Settings(BaseSettings):
     session_cookie_secure: bool = True
     session_max_age_days: int = 30
 
+    # "subscription" runs AI calls through Claude Code on a Claude subscription, logged in
+    # locally or via CLAUDE_CODE_OAUTH_TOKEN; "api_key" uses ANTHROPIC_API_KEY (billed credits).
+    llm_auth: Literal["api_key", "subscription"] = "subscription"
+    claude_code_oauth_token: str = ""
     anthropic_api_key: str = ""
     llm_model: str = "claude-opus-5-5"
     max_document_tokens: int = 50_000

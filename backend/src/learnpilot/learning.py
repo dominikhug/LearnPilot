@@ -600,11 +600,11 @@ def _llm_failed(
     message = llm.error_message(error)
     if message is None:
         raise error
-    if isinstance(error, llm.DailyLimitReachedError):
+    if isinstance(error, (llm.DailyLimitReachedError, llm.SubscriptionLimitReachedError)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, message) from error
     if isinstance(error, llm.LlmOutputError):
         llm.log_call(session, user_id, document_id, purpose, error.usage)
-    elif isinstance(error, anthropic.APIError):
+    elif isinstance(error, (anthropic.APIError, llm.SubscriptionError)):
         log.exception("AI service call failed (%s)", purpose)
     raise HTTPException(status.HTTP_502_BAD_GATEWAY, message) from error
 

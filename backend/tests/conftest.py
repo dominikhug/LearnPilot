@@ -4,10 +4,10 @@ from pathlib import Path
 
 from dotenv import dotenv_values
 
-# For the opt-in live tests only (LEARNPILOT_LIVE_LLM=1); read before it is blanked below.
-LIVE_API_KEY = os.environ.get("ANTHROPIC_API_KEY") or dotenv_values(
-    Path(__file__).resolve().parents[2] / ".env"
-).get("ANTHROPIC_API_KEY", "")
+# For the opt-in live tests only (LEARNPILOT_LIVE_LLM=1); read before they are reset below.
+_DOTENV = dotenv_values(Path(__file__).resolve().parents[2] / ".env")
+LIVE_API_KEY = os.environ.get("ANTHROPIC_API_KEY") or _DOTENV.get("ANTHROPIC_API_KEY", "")
+LIVE_LLM_AUTH = os.environ.get("LLM_AUTH") or _DOTENV.get("LLM_AUTH") or "subscription"
 
 # Must be set before learnpilot.config is imported; environment beats .env.
 os.environ.update(
@@ -16,6 +16,8 @@ os.environ.update(
     SESSION_COOKIE_SECURE="false",
     # Tests never call the real API, even when .env holds a key.
     ANTHROPIC_API_KEY="",
+    # The daily limit applies; tests of the subscription path switch it themselves.
+    LLM_AUTH="api_key",
 )
 
 import pytest  # noqa: E402

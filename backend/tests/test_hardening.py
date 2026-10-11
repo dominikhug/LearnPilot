@@ -86,6 +86,44 @@ def test_processing_pauses_at_the_limit(logged_in, extractor, token_counter, eng
     assert (extractor.calls, token_counter.calls) == ([], [])
 
 
+def test_subscription_has_no_daily_limit(logged_in, tutor, engine, limit, monkeypatch):
+    monkeypatch.setattr(settings, "llm_auth", "subscription")
+    spend(engine, 1_000)
+    function, _ = concepts(logged_in)
+    assert start(logged_in, function["id"]).status_code == 200
+
+    usage = logged_in.get("/api/usage").json()
+    assert (usage["daily_limit"], usage["paused"], usage["subscription_limited"]) == (
+        None,
+        False,
+        False,
+    )
+
+
+def test_subscription_limit_pauses_learning(logged_in, tutor, monkeypatch):
+    monkeypatch.setattr(settings, "llm_auth", "subscription")
+    resets_at = datetime(2099, 1, 1, 12, tzinfo=UTC)
+    monkeypatch.setattr(llm, "_limit_resets_at", resets_at)
+    function, _ = concepts(logged_in)
+    tutor.plan = llm.SubscriptionLimitReachedError(resets_at)
+    response = start(logged_in, function["id"])
+    assert response.status_code == 429
+    assert "resume at 2099-01-01 12:00 UTC" in response.json()["detail"]
+
+    usage = logged_in.get("/api/usage").json()
+    assert usage["subscription_limited"] is True
+    assert usage["subscription_resets_at"].startswith("2099-01-01T12:00")
+
+
+def test_subscription_limit_fails_processing_for_retry(logged_in, extractor, token_counter):
+    extractor.result = llm.SubscriptionLimitReachedError(None)
+    document = upload(logged_in).json()
+    failed = logged_in.get(f"/api/documents/{document['id']}").json()
+    assert failed["status"] == "failed"
+    assert failed["error_message"].endswith("Settings → Usage). Retry then.")
+    assert failed["can_retry"] is True
+
+
 # Usage from the LlmCall log
 
 

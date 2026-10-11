@@ -264,9 +264,13 @@ export interface Tokens {
 export interface Usage {
   /** All users' tokens today; the daily limit counts these. */
   used_today: number
-  daily_limit: number
+  /** null: calls run on the Claude subscription, which has no daily limit here. */
+  daily_limit: number | null
   resets_at: string
   paused: boolean
+  /** The subscription's own usage limit is reached; the reset time may be unknown. */
+  subscription_limited: boolean
+  subscription_resets_at: string | null
   /** The current user's calls, all time. */
   total: Tokens
   /** document_id null: documents deleted since. */

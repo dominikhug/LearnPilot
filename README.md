@@ -14,7 +14,7 @@ Development happens in a VS Code dev container. It brings Python, Node, `uv`, Cl
 ### Open the repo in the dev container
 
 1. Clone the repo and open the folder in VS Code.
-2. Copy `.env.example` to `.env` and set at least `APP_PASSWORD` and `SESSION_SECRET` (and `ANTHROPIC_API_KEY` for LLM features). The container reads `.env` when it starts.
+2. Copy `.env.example` to `.env` and set at least `APP_PASSWORD` and `SESSION_SECRET`. LLM features run on your Claude subscription by default (`LLM_AUTH=subscription`) and use the devcontainer's `claude` login; set `LLM_AUTH=api_key` and `ANTHROPIC_API_KEY` to use API credits instead. The container reads `.env` when it starts.
 3. Open the Command Palette (`Ctrl+Shift+P`) and run **Dev Containers: Reopen in Container**, or click **Reopen in Container** in the notification VS Code shows on opening the folder. The first build takes a few minutes.
 4. VS Code reloads inside the container. The terminal now runs in the container, with the repo at `/workspaces/LearnPilot`.
 
@@ -56,4 +56,4 @@ cd backend && LEARNPILOT_LIVE_LLM=1 uv run pytest tests/test_live_llm.py
 
 ## Deployment (Railway)
 
-One service built from the root `Dockerfile` plus the PostgreSQL add-on. Set `DATABASE_URL` (reference the add-on), `APP_PASSWORD`, `SESSION_SECRET` and `ANTHROPIC_API_KEY` as service variables. Migrations run automatically on start; the health check is `/api/health`.
+One service built from the root `Dockerfile` plus the PostgreSQL add-on. Set `DATABASE_URL` (reference the add-on), `APP_PASSWORD`, `SESSION_SECRET` and `CLAUDE_CODE_OAUTH_TOKEN` as service variables. Create the token locally with `claude setup-token` (valid for a year); leave `ANTHROPIC_API_KEY` unset, or set `LLM_AUTH=api_key` to use it instead. The subscription is for personal use only, so keep the app to yourself. Migrations run automatically on start; the health check is `/api/health`.

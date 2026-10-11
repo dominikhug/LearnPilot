@@ -38,20 +38,35 @@ onMounted(async () => {
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <template v-if="usage">
       <h2>Today</h2>
-      <div class="mastery">
-        <meter
-          :value="usage.used_today"
-          min="0"
-          :max="usage.daily_limit"
-          :high="usage.daily_limit * 0.8"
-          :optimum="0"
-        />
-        <span>{{ number(usage.used_today) }} / {{ number(usage.daily_limit) }} tokens</span>
-      </div>
-      <p v-if="usage.paused" class="notice" role="status">
-        The daily limit is used up. AI features resume at {{ formatTime(usage.resets_at) }}.
-      </p>
-      <p v-else class="muted">The limit resets at {{ formatTime(usage.resets_at) }}.</p>
+      <template v-if="usage.daily_limit !== null">
+        <div class="mastery">
+          <meter
+            :value="usage.used_today"
+            min="0"
+            :max="usage.daily_limit"
+            :high="usage.daily_limit * 0.8"
+            :optimum="0"
+          />
+          <span>{{ number(usage.used_today) }} / {{ number(usage.daily_limit) }} tokens</span>
+        </div>
+        <p v-if="usage.paused" class="notice" role="status">
+          The daily limit is used up. AI features resume at {{ formatTime(usage.resets_at) }}.
+        </p>
+        <p v-else class="muted">The limit resets at {{ formatTime(usage.resets_at) }}.</p>
+      </template>
+      <template v-else>
+        <p>{{ number(usage.used_today) }} tokens</p>
+        <p v-if="usage.subscription_limited" class="notice" role="status">
+          Your Claude subscription's usage limit is reached.
+          <template v-if="usage.subscription_resets_at">
+            AI features resume at {{ formatTime(usage.subscription_resets_at) }}.
+          </template>
+          <template v-else>AI features resume when it resets (see claude.ai → Settings → Usage).</template>
+        </p>
+        <p v-else class="muted">
+          AI calls run on your Claude subscription. Its limits are shared with Claude Code.
+        </p>
+      </template>
 
       <h2>By document</h2>
       <p v-if="!usage.by_document.length" class="muted">No AI calls yet.</p>
