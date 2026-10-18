@@ -48,7 +48,7 @@ cd backend && uv run pytest && uv run ruff check . && uv run ruff format --check
 cd frontend && npm run build
 ```
 
-Tests never call the real AI service. A few checks do (prompt injection against grading); they cost a few thousand tokens and run only on request:
+Tests never call the real AI service. A few checks do (prompt injection against grading); they run as `LLM_AUTH` says (by default on your Claude subscription), cost a few thousand tokens and run only on request:
 
 ```bash
 cd backend && LEARNPILOT_LIVE_LLM=1 uv run pytest tests/test_live_llm.py
